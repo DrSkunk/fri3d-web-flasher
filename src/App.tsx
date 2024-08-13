@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Field, Label, Switch } from "@headlessui/react";
-import clsx from "clsx";
 import { SimpleUpload } from "./components/SimpleUpload";
 import { ToastContainer } from "./components/ToastContainer";
+import { AdvancedUpload } from "./components/AdvancedUpload";
 
 export function App() {
   const [advancedMode, setAdvancedMode] = useState(true);
@@ -14,7 +14,8 @@ export function App() {
         <div className="absolute w-screen h-screen flex justify-center items-center">
           <div className="flex flex-col justify-normal items-center">
             <h1 className="text-4xl mb-4">Fri3d Flasher</h1>
-            <SimpleUpload />
+            {advancedMode && <AdvancedUpload />}
+            {!advancedMode && <SimpleUpload />}
           </div>
         </div>
         <Field className="flex justify-center gap-4 absolute right-2 top-2">
