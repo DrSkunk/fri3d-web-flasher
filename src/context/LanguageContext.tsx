@@ -13,11 +13,7 @@ export const LanguageContext = createContext<LanguageContextType>({
   switchLanguage: () => {},
 });
 
-export function LanguageContextProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function LanguageContextProvider({ children }: { children: React.ReactNode }) {
   const [currentLanguage, setCurrentLanguage] = useState<Language>(Language.NL);
 
   function setLanguage(language: Language) {
@@ -25,9 +21,7 @@ export function LanguageContextProvider({
   }
 
   function switchLanguage() {
-    setCurrentLanguage((currentLanguage) =>
-      currentLanguage === Language.NL ? Language.EN : Language.NL
-    );
+    setCurrentLanguage((currentLanguage) => (currentLanguage === Language.NL ? Language.EN : Language.NL));
   }
 
   return (

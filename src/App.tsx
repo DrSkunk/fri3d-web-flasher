@@ -11,14 +11,14 @@ export function App() {
     <>
       <ToastContainer />
       <div className="h-screen w-screen">
-        <div className="absolute w-screen h-screen flex justify-center items-center">
-          <div className="flex flex-col justify-normal items-center">
-            <h1 className="text-4xl mb-4">Fri3d Flasher</h1>
+        <div className="absolute flex h-screen w-screen items-center justify-center">
+          <div className="flex flex-col items-center justify-normal">
+            <h1 className="mb-4 text-4xl">Fri3d Flasher</h1>
             {advancedMode && <AdvancedUpload />}
             {!advancedMode && <SimpleUpload />}
           </div>
         </div>
-        <Field className="flex justify-center gap-4 absolute right-2 top-2">
+        <Field className="absolute right-2 top-2 flex justify-center gap-4">
           <Label className="select-none">Geavanceerde modus</Label>
           <Switch
             checked={advancedMode}

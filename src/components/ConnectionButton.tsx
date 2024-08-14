@@ -3,8 +3,7 @@ import { EsptoolContext } from "../context/EsptoolContext";
 import { Button } from "./Button";
 
 export function ConnectionButton() {
-  const { isConnected, isConnecting, connect, disconnect } =
-    useContext(EsptoolContext);
+  const { isConnected, isConnecting, connect, disconnect } = useContext(EsptoolContext);
 
   if (isConnecting) {
     return <Button disabled={true}> Aan het verbinden ...</Button>;

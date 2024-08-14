@@ -7,8 +7,7 @@ import { Button } from "./Button";
 export function SimpleUpload() {
   const [fileIncoming, setFileIncoming] = useState(false);
 
-  const { flash, loadFirmware, firmware, flashProgress } =
-    useContext(EsptoolContext);
+  const { flash, loadFirmware, firmware } = useContext(EsptoolContext);
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     console.log("drop");
@@ -34,11 +33,10 @@ export function SimpleUpload() {
     <>
       <div
         className={clsx(
-          "relative w-96 h-48 border border-dashed rounded",
-          !fileIncoming && "border-gray-400  bg-gray-100 dark:bg-slate-600",
-          fileIncoming &&
-            "border-emerald-600 bg-emerald-100 dark:bg-emerald-600",
-          "mb-4"
+          "relative h-48 w-96 rounded border border-dashed",
+          !fileIncoming && "border-gray-400 bg-gray-100 dark:bg-slate-600",
+          fileIncoming && "border-emerald-600 bg-emerald-100 dark:bg-emerald-600",
+          "mb-4",
         )}
         onDrop={handleDrop}
         onDragOver={(e) => {
@@ -47,18 +45,12 @@ export function SimpleUpload() {
         onDragEnter={() => setFileIncoming(true)}
         onDragLeave={() => setFileIncoming(false)}
       >
-        <p className="text-center p-4">
+        <p className="p-4 text-center">
           {fileIncoming && !firmware && "Laat het vallen alsof het warm is."}
-          {!fileIncoming &&
-            !firmware &&
-            "Klik hier om een firmware bestand op te laden of sleep hem in dit vakje."}
+          {!fileIncoming && !firmware && "Klik hier om een firmware bestand op te laden of sleep hem in dit vakje."}
           {firmware && firmware.filename}
         </p>
-        <Input
-          type="file"
-          className="opacity-0 block absolute inset-0"
-          onChange={onFileSelect}
-        />
+        <Input type="file" className="absolute inset-0 block opacity-0" onChange={onFileSelect} />
       </div>
       <Button onClick={flash} disabled={!firmware}>
         Begin met flashen

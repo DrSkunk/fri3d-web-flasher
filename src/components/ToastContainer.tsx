@@ -7,6 +7,7 @@ export function ToastContainer() {
   useEffect(() => {
     // set initial value
     const mediaWatcher = window.matchMedia("(prefers-color-scheme: dark)");
+    setIsDarkMode(mediaWatcher.matches);
 
     //watch for updates
     function updateIsDarkMode(e: MediaQueryListEvent) {

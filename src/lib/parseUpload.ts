@@ -1,6 +1,5 @@
 import { unzip as unzipCB } from "fflate";
 import { Firmware } from "../interfaces/Firmware";
-import { toast } from "react-toastify";
 
 function unzip(raw: Uint8Array): Promise<{ [key: string]: Uint8Array }> {
   return new Promise((resolve, reject) => {
@@ -13,12 +12,6 @@ function unzip(raw: Uint8Array): Promise<{ [key: string]: Uint8Array }> {
     });
   });
 }
-
-// function uint8ArrayToBinaryString(uint8Array: Uint8Array): string {
-//   return Array.from(uint8Array, (byte: number) =>
-//     byte.toString(2).padStart(8, "0")
-//   ).join("");
-// }
 
 function uint8ArrayToBinaryString(uint8Array: Uint8Array): string {
   return Array.from(uint8Array, (byte) => String.fromCharCode(byte)).join("");
@@ -37,13 +30,11 @@ export async function parseUpload(file: File): Promise<Firmware> {
   // 0x1000 bootloader.bin
   // 0x10000 micropython.bin
   // 0x8000 partition-table.bin
-  const [flashArgs, ...partitionsStrings] = flashArgsFile
-    .split("\n")
-    .filter(Boolean);
+  const [flashArgs, ...partitionsStrings] = flashArgsFile.split("\n").filter(Boolean);
   const partitions = partitionsStrings.map((partition) => {
     const [address, name] = partition.split(" ");
     const data = uint8ArrayToBinaryString(unzipped[name]);
-    return { address: parseInt(address, 16), name, data };
+    return { address: parseInt(address, 16), name, data, progress: 0 };
   });
   return {
     filename: file.name,

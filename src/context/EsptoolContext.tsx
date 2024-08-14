@@ -7,14 +7,15 @@ import CryptoJS from "crypto-js";
 
 interface EsptoolContextType {
   firmware: Firmware | null;
-  loadFirmware: (file: File) => void;
-  flash: (file: File) => void;
+  loadFirmware: (file: File) => Promise<void>;
+  flash: (file: File) => Promise<void>;
   logs: string[];
-  connect: () => void;
+  connect: () => Promise<void>;
   disconnect: () => void;
   isConnected: boolean;
   isConnecting: boolean;
   updateProgress: (partitionIndex: number, progress: number) => void;
+  eraseFlash: () => Promise<void>;
   deviceInfo: {
     chipName: string;
     mac: string;
@@ -25,14 +26,15 @@ interface EsptoolContextType {
 
 export const EsptoolContext = createContext<EsptoolContextType>({
   firmware: null,
-  loadFirmware: () => {},
-  flash: () => {},
+  loadFirmware: async () => {},
+  flash: async () => {},
   logs: [],
-  connect: () => {},
+  connect: async () => {},
   disconnect: () => {},
   isConnected: false,
   isConnecting: false,
   updateProgress: () => {},
+  eraseFlash: async () => {},
   deviceInfo: {
     chipName: "onbekend",
     mac: "onbekend",
@@ -41,11 +43,7 @@ export const EsptoolContext = createContext<EsptoolContextType>({
   },
 });
 
-export function EsptoolContextProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function EsptoolContextProvider({ children }: { children: React.ReactNode }) {
   const [logs, setLogs] = useState<string[]>([]);
   const [baudrate, setBaudrate] = useState(115200);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -105,6 +103,7 @@ export function EsptoolContextProvider({
     },
     writeLine(data: string) {
       captureInfo(data);
+      console.log(data);
       setLogs((prev) => {
         return [...prev, data];
       });
@@ -121,7 +120,7 @@ export function EsptoolContextProvider({
     },
   };
 
-  async function disconnect() {
+  function disconnect() {
     device.current = null;
     transport.current = null;
     esploader.current = null;
@@ -175,26 +174,17 @@ export function EsptoolContextProvider({
 
     console.log("Flashing", file);
     const flashOptions: FlashOptions = {
-      // fileArray,
+      fileArray: fileArray,
       flashSize: "16MB",
       flashMode: "dio",
       flashFreq: "80m",
-      // eraseAll: true,
-      // compress: true,
-      // reportProgress(fileIndex, written, total) {
-      //   console.log("Progress", fileIndex, written, total);
-      // },
-      fileArray: fileArray,
-      // flashSize: "keep",
       eraseAll: false,
       compress: true,
       reportProgress: (fileIndex, written, total) => {
-        // progressBars[fileIndex].value = (written / total) * 100;
         console.log("Progress", fileIndex, written, total);
         updateProgress(fileIndex, (written / total) * 100);
       },
-      calculateMD5Hash: (image) =>
-        CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)).toString(),
+      calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)).toString(),
     };
     esploader.current.writeFlash(flashOptions);
   }
@@ -206,6 +196,13 @@ export function EsptoolContextProvider({
     } catch (error) {
       toast.error("Ongeldig zip bestand");
     }
+  }
+
+  async function eraseFlash() {
+    if (!esploader.current) {
+      return;
+    }
+    await esploader.current.eraseFlash();
   }
 
   function updateProgress(partitionIndex: number, progress: number) {
@@ -236,6 +233,7 @@ export function EsptoolContextProvider({
         connect,
         disconnect,
         updateProgress,
+        eraseFlash,
         deviceInfo,
         isConnecting,
         isConnected,
