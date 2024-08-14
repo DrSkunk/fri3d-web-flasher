@@ -7,6 +7,8 @@ Currently Supported:
 - Badge 2024
 - Badge 2022
 
+Currently hosted at https://fri3d-flasher.vercel.app/
+
 ## Development
 
 This is Vite web app that uses the React framework. To start the development server, run:
