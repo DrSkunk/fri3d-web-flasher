@@ -192,6 +192,7 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
     };
     await esploader.current.writeFlash(flashOptions);
     setIsFlashing(false);
+    toast.success("Firmware geflashed!");
   }
 
   async function loadFirmwareFromUrl(url: string) {
