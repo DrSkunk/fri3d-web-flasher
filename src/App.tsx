@@ -1,11 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Field, Label, Switch } from "@headlessui/react";
 import { SimpleUpload } from "./components/SimpleUpload";
 import { ToastContainer } from "./components/ToastContainer";
 import { AdvancedUpload } from "./components/AdvancedUpload";
 
 export function App() {
-  const [advancedMode, setAdvancedMode] = useState(true);
+  const [advancedMode, setAdvancedMode] = useState(false);
+
+  useEffect(() => {
+    // get advancedMdoe from local storage
+    const advancedMode = localStorage.getItem("advancedMode");
+    if (advancedMode) {
+      setAdvancedMode(advancedMode === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    // save advancedMode to local storage
+    localStorage.setItem("advancedMode", advancedMode.toString());
+  }, [advancedMode]);
 
   return (
     <>
