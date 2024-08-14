@@ -7,7 +7,7 @@ import { Button } from "./Button";
 export function SimpleUpload() {
   const [fileIncoming, setFileIncoming] = useState(false);
 
-  const { flash, loadFirmware, firmware } = useContext(EsptoolContext);
+  const { flash, uploadFirmware, firmware } = useContext(EsptoolContext);
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     console.log("drop");
@@ -17,7 +17,7 @@ export function SimpleUpload() {
       return;
     }
     const file = event.dataTransfer.files[0];
-    loadFirmware(file);
+    uploadFirmware(file);
     setFileIncoming(false);
   }
 
@@ -26,7 +26,7 @@ export function SimpleUpload() {
       return;
     }
     const file = e.target.files[0];
-    loadFirmware(file);
+    uploadFirmware(file);
   }
 
   return (

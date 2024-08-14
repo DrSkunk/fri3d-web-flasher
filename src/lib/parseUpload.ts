@@ -17,11 +17,44 @@ function uint8ArrayToBinaryString(uint8Array: Uint8Array): string {
   return Array.from(uint8Array, (byte) => String.fromCharCode(byte)).join("");
 }
 
-export async function parseUpload(file: File): Promise<Firmware> {
-  const buffer = await file.arrayBuffer();
+function arrayBufferToBinaryString(buffer: ArrayBuffer): string {
+  return uint8ArrayToBinaryString(new Uint8Array(buffer));
+}
+
+export async function parseUpload(file: File | ArrayBuffer, filenameOverride?: string): Promise<Firmware> {
+  let buffer;
+  let filename = "onbekend bestand";
+  if (file instanceof ArrayBuffer) {
+    buffer = file;
+  } else {
+    filename = file.name;
+    buffer = await file.arrayBuffer();
+  }
+
+  if (filenameOverride) {
+    filename = filenameOverride;
+  }
 
   const zip = new Uint8Array(buffer);
-  const unzipped = await unzip(zip);
+  let unzipped;
+  try {
+    unzipped = await unzip(zip);
+  } catch (error) {
+    console.log("not a zip file, trying to flash as single file");
+    return {
+      filename,
+      flashArgs: "",
+      partitions: [
+        {
+          address: 0,
+          name: filename,
+          data: arrayBufferToBinaryString(buffer),
+          progress: 0,
+        },
+      ],
+    };
+  }
+  // const unzipped = await unzip(zip);
   const textDecoder = new TextDecoder();
 
   const flashArgsFile = textDecoder.decode(unzipped.flash_args);
@@ -37,7 +70,7 @@ export async function parseUpload(file: File): Promise<Firmware> {
     return { address: parseInt(address, 16), name, data, progress: 0 };
   });
   return {
-    filename: file.name,
+    filename,
     flashArgs,
     partitions,
   };

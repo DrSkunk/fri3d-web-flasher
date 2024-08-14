@@ -15,23 +15,32 @@ function TD({ children }: { children: React.ReactNode }) {
 }
 
 export function AdvancedUpload() {
-  const { loadFirmware, firmware, deviceInfo, isConnected, flash } = useContext(EsptoolContext);
+  const { uploadFirmware, firmware, deviceInfo, isConnected, flash, isFlashing } = useContext(EsptoolContext);
 
   function onFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files) {
       return;
     }
     const file = e.target.files[0];
-    loadFirmware(file);
+    uploadFirmware(file);
   }
 
   return (
     <>
       <ConnectionButton />
-      <div className="mt-2 grid grid-cols-2">
+      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
         <div>Chip: {deviceInfo.chipName}</div>
         <div>MAC adres: {deviceInfo.mac}</div>
-        <div>Features: {deviceInfo.features}</div>
+        <div>
+          Features:
+          <ul>
+            {deviceInfo.features.split(",").map((feature) => (
+              <li className="ml-8 list-disc" key={feature}>
+                {feature}
+              </li>
+            ))}
+          </ul>
+        </div>
         <div>Kristal: {deviceInfo.crystal}</div>
       </div>
       <table className="mt-2 table-auto">
@@ -68,9 +77,9 @@ export function AdvancedUpload() {
           )}
         >
           Selecteer firmware
-          <Input type="file" className="absolute inset-0 block opacity-0" onChange={onFileSelect} />
+          <Input type="file" className="absolute inset-0 block opacity-0" onChange={onFileSelect} disabled={isFlashing} />
         </div>
-        <Button onClick={flash} disabled={!firmware || !isConnected}>
+        <Button onClick={flash} disabled={!firmware || !isConnected || isFlashing}>
           Upload firmware
         </Button>
       </div>

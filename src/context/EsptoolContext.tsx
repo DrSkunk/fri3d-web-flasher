@@ -7,13 +7,15 @@ import CryptoJS from "crypto-js";
 
 interface EsptoolContextType {
   firmware: Firmware | null;
-  loadFirmware: (file: File) => Promise<void>;
+  uploadFirmware: (file: File) => Promise<void>;
+  loadFirmwareFromUrl: (url: string) => Promise<void>;
   flash: (file: File) => Promise<void>;
   logs: string[];
   connect: () => Promise<void>;
   disconnect: () => void;
   isConnected: boolean;
   isConnecting: boolean;
+  isFlashing: boolean;
   updateProgress: (partitionIndex: number, progress: number) => void;
   eraseFlash: () => Promise<void>;
   deviceInfo: {
@@ -26,13 +28,15 @@ interface EsptoolContextType {
 
 export const EsptoolContext = createContext<EsptoolContextType>({
   firmware: null,
-  loadFirmware: async () => {},
+  uploadFirmware: async () => {},
+  loadFirmwareFromUrl: async () => {},
   flash: async () => {},
   logs: [],
   connect: async () => {},
   disconnect: () => {},
   isConnected: false,
   isConnecting: false,
+  isFlashing: false,
   updateProgress: () => {},
   eraseFlash: async () => {},
   deviceInfo: {
@@ -48,6 +52,7 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
   const [baudrate, setBaudrate] = useState(115200);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isFlashing, setIsFlashing] = useState(false);
 
   const device = useRef<SerialPort | null>(null);
   const esploader = useRef<ESPLoader | null>(null);
@@ -148,6 +153,7 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
       setIsConnecting(false);
       setIsConnected(true);
     } catch (error) {
+      toast.error("Er is een fout opgetreden bij het verbinden met de badge");
       if (typeof error === "string") {
         espLoaderTerminal.writeLine(error);
       } else if (error instanceof Error) {
@@ -164,13 +170,11 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
     if (!esploader.current || !firmware) {
       return;
     }
-
+    setIsFlashing(true);
     const fileArray = firmware.partitions.map(({ address, data }) => ({
       address,
       data,
     }));
-
-    console.log("fileArray", fileArray);
 
     console.log("Flashing", file);
     const flashOptions: FlashOptions = {
@@ -186,10 +190,22 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
       },
       calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)).toString(),
     };
-    esploader.current.writeFlash(flashOptions);
+    await esploader.current.writeFlash(flashOptions);
+    setIsFlashing(false);
   }
 
-  async function loadFirmware(file: File) {
+  async function loadFirmwareFromUrl(url: string) {
+    const response = await fetch("http://localhost:5173/github_api/repos/tomvanbraeckel/retro-go-fri3d/releases/assets/185561939", {
+      headers: {
+        Accept: "application/octet-stream",
+      },
+    });
+    const buffer = await response.arrayBuffer();
+    const firmware = await parseUpload(buffer);
+    setFirmware(firmware);
+  }
+
+  async function uploadFirmware(file: File) {
     try {
       const firmware = await parseUpload(file);
       setFirmware(firmware);
@@ -226,7 +242,8 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
   return (
     <EsptoolContext.Provider
       value={{
-        loadFirmware,
+        uploadFirmware,
+        loadFirmwareFromUrl,
         firmware,
         flash,
         logs,
@@ -237,6 +254,7 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
         deviceInfo,
         isConnecting,
         isConnected,
+        isFlashing,
       }}
     >
       {children}

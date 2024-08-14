@@ -10,26 +10,26 @@ function Spinner() {
 
 export function EraseFlashButton() {
   const [showDialog, setShowDialog] = useState(false);
-  const [isFlashing, setIsFlashing] = useState(false);
+  const [isErasing, setIsErasing] = useState(false);
 
-  const { isConnected, eraseFlash } = useContext(EsptoolContext);
+  const { isConnected, eraseFlash, isFlashing } = useContext(EsptoolContext);
 
   async function startErase() {
-    setIsFlashing(true);
+    setIsErasing(true);
     try {
       await eraseFlash();
     } catch (error) {
       console.error("Failed to erase flash memory", error);
       toast.error("Er is een fout opgetreden bij het wissen van het flash geheugen");
     } finally {
-      setIsFlashing(false);
+      setIsErasing(false);
       setShowDialog(false);
       toast.success("Flash geheugen gewist");
     }
   }
 
   function closeDialog() {
-    if (isFlashing) {
+    if (isErasing) {
       return;
     }
     setShowDialog(false);
@@ -37,7 +37,7 @@ export function EraseFlashButton() {
 
   return (
     <>
-      <Button onClick={() => setShowDialog(true)} disabled={!isConnected}>
+      <Button onClick={() => setShowDialog(true)} disabled={!isConnected || isFlashing}>
         Flash geheugen wissen
       </Button>
       <Dialog open={showDialog} onClose={closeDialog}>
@@ -46,8 +46,8 @@ export function EraseFlashButton() {
           <DialogPanel className="max-w-lg space-y-4 rounded border bg-gray-50 p-12 dark:bg-slate-900 dark:text-white">
             <DialogTitle className="font-bold">Badge wissen</DialogTitle>
 
-            {isFlashing && <Spinner />}
-            {!isFlashing && (
+            {isErasing && <Spinner />}
+            {!isErasing && (
               <>
                 <Description>
                   Dit zal <strong>alle gegevens</strong> op de badge wissen.
@@ -55,7 +55,7 @@ export function EraseFlashButton() {
                 <p>Weet je zeker dat je de badge wilt wissen? Dit kan niet ongedaan worden gemaakt.</p>
               </>
             )}
-            {!isFlashing && (
+            {!isErasing && (
               <div className="flex justify-between">
                 <Button onClick={() => setShowDialog(false)}>Annuleren</Button>
                 <Button onClick={startErase} type={ButtonType.Primary}>
