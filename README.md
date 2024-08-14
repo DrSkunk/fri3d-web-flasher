@@ -1,6 +1,6 @@
 # Fri3d Web Flasher
 
-This is a program to easily repair your board that you bought or received at [Fri3d camp](https://fri3d.be). It uses the [WebS erial API](https://web.dev/serial/) to flash the firmware on your board, which is only available on Webkit-based browsers (Chrome, Edge, Brave, ...).
+This is a program to easily repair your board that you bought or received at [Fri3d camp](https://fri3d.be). It uses the [WebSerial API](https://web.dev/serial/) to flash the firmware on your board, which is only available on Webkit-based browsers (Chrome, Edge, Brave, ...).
 
 Currently Supported:
 
