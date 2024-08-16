@@ -84,6 +84,7 @@ export function AdvancedUpload() {
         </Button>
       </div>
       <EraseFlashButton />
+      {isFlashing && <div className="animate-pulse text-5xl text-red-500">Aan het flashen, niet uittrekken!</div>}
     </>
   );
 }

@@ -191,8 +191,15 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
       calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.enc.Latin1.parse(image)).toString(),
     };
     await esploader.current.writeFlash(flashOptions);
+    // reset progress
+    for (let index = 0; index < firmware.partitions.length; index++) {
+      updateProgress(index, 0);
+    }
+
     setIsFlashing(false);
-    toast.success("Firmware geflashed!");
+    toast.success("Firmware geflashed!", {
+      autoClose: false,
+    });
   }
 
   async function loadFirmwareFromUrl(url: string) {

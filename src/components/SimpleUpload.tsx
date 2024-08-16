@@ -7,7 +7,7 @@ import { Button } from "./Button";
 export function SimpleUpload() {
   const [fileIncoming, setFileIncoming] = useState(false);
 
-  const { flash, uploadFirmware, firmware } = useContext(EsptoolContext);
+  const { flash, uploadFirmware, firmware, isFlashing } = useContext(EsptoolContext);
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     console.log("drop");
@@ -50,11 +50,12 @@ export function SimpleUpload() {
           {!fileIncoming && !firmware && "Klik hier om een firmware bestand op te laden of sleep hem in dit vakje."}
           {firmware && firmware.filename}
         </p>
-        <Input type="file" className="absolute inset-0 block opacity-0" onChange={onFileSelect} />
+        <Input type="file" className="absolute inset-0 block opacity-0" disabled={isFlashing} onChange={onFileSelect} />
       </div>
-      <Button onClick={flash} disabled={!firmware}>
+      <Button onClick={flash} disabled={!firmware || isFlashing}>
         Begin met flashen
       </Button>
+      {isFlashing && <div className="animate-pulse text-5xl text-red-500">Aan het flashen, niet uittrekken!</div>}
     </>
   );
 }
