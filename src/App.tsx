@@ -3,6 +3,7 @@ import { Field, Label, Switch } from "@headlessui/react";
 import { SimpleUpload } from "./components/SimpleUpload";
 import { ToastContainer } from "./components/ToastContainer";
 import { AdvancedUpload } from "./components/AdvancedUpload";
+import { NoSerialOverlay } from "./components/NoSerialOverlay";
 
 export function App() {
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -22,6 +23,7 @@ export function App() {
 
   return (
     <>
+      <NoSerialOverlay />
       <ToastContainer />
       <div className="h-screen w-screen">
         <div className="absolute flex h-screen w-screen items-center justify-center">
