@@ -7,7 +7,7 @@ over WebUSB with wchisp-web).
 
 The app lists firmware releases from `https://fri3d-firmware.drskunk.be/api.json`. In simple mode you flash
 the latest release with one click; advanced mode lets you pick a specific release/hardware version,
-erase flash, and inspect the connected chip. Downloads are cached in the browser so re-flashing
+select a local firmware file, erase flash, and inspect the connected chip. Downloads are cached in the browser so re-flashing
 doesn't re-download.
 
 Requires a Chromium-based browser (Chrome, Edge, Brave, ...) for WebSerial/WebUSB.

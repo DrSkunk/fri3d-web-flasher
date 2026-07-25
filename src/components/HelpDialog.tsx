@@ -17,13 +17,9 @@ export function HelpButton({ title, children }: { title: string; children: React
         type="button"
         aria-label={`${t("common.help")}: ${title}`}
         onClick={() => setOpen(true)}
-        className={
-          "bg-fri3d-orange flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-4 border-black " +
-          "font-display shadow-hard-sm text-sm font-bold text-black transition-transform " +
-          "active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
-        }
+        className="focus-visible:ring-fri3d-purple-light shrink-0 text-sm font-bold underline underline-offset-4 hover:no-underline focus-visible:ring-3 focus-visible:outline-none"
       >
-        ?
+        {t("common.help")}
       </button>
       <Dialog open={open} onClose={() => setOpen(false)}>
         <DialogBackdrop className="fixed inset-0 bg-black/40 backdrop-blur-xs" />
@@ -104,8 +100,16 @@ export function BadgeInstructions({ badge }: { badge: string }) {
           <strong>Already plugged in and it won't connect?</strong> Hold down the <strong>S</strong> button (the boot button) and then press{" "}
           <strong>reset</strong>. That boots the badge into flash mode without replugging the cable.
         </p>
-        <img src={`${import.meta.env.BASE_URL}badge_2026_S.webp`} alt="Badge 2026: location of the S (boot) button" className={imgClassName} />
-        <img src={`${import.meta.env.BASE_URL}badge_2026_reset.webp`} alt="Badge 2026: location of the reset pin" className={imgClassName} />
+        <img
+          src={`${import.meta.env.BASE_URL}badge_2026_S.webp`}
+          alt="Badge 2026: location of the S (boot) button"
+          className={imgClassName}
+        />
+        <img
+          src={`${import.meta.env.BASE_URL}badge_2026_reset.webp`}
+          alt="Badge 2026: location of the reset pin"
+          className={imgClassName}
+        />
       </>
     );
   }
