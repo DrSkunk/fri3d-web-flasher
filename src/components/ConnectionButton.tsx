@@ -3,7 +3,7 @@ import { EsptoolContext } from "../context/EsptoolContext";
 import { useTranslation } from "../context/LanguageContext";
 import { Button } from "./Button";
 
-export function ConnectionButton() {
+export function ConnectionButton({ disabled = false }: { disabled?: boolean }) {
   const { isConnected, isConnecting, connect, disconnect, isFlashing } = useContext(EsptoolContext);
   const { t } = useTranslation();
 
@@ -13,14 +13,14 @@ export function ConnectionButton() {
 
   if (isConnected) {
     return (
-      <Button onClick={() => void disconnect()} disabled={isFlashing}>
+      <Button onClick={() => void disconnect()} disabled={disabled || isFlashing}>
         {t("connect.disconnect")}
       </Button>
     );
   }
 
   return (
-    <Button onClick={() => void connect()} disabled={isFlashing}>
+    <Button onClick={() => void connect()} disabled={disabled || isFlashing}>
       {t("connect.connect")}
     </Button>
   );

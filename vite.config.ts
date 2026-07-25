@@ -29,4 +29,14 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "@headlessui/react", "react-toastify"],
+          flashing: ["esptool-js", "wchisp-web", "crypto-js"],
+        },
+      },
+    },
+  },
 });

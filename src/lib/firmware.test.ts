@@ -1,12 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  downloadAsset,
-  sha256Hex,
-  sortCatalogReleases,
-  validateFirmwareCatalog,
-  verifyFirmware,
-  type FirmwareAsset,
-} from "./firmware";
+import { downloadAsset, sha256Hex, sortCatalogReleases, validateFirmwareCatalog, verifyFirmware, type FirmwareAsset } from "./firmware";
 
 function bytes(...values: number[]): ArrayBuffer {
   return Uint8Array.from(values).buffer;

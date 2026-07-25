@@ -55,8 +55,12 @@ export function App() {
           </div>
         </header>
 
-        <main className="flex items-start justify-center p-6">
-          <div className="flex w-full max-w-4xl flex-col items-center">
+        <main className="flex items-start justify-center px-4 py-6 sm:px-6">
+          <div className="w-full max-w-4xl">
+            <div className="mb-5">
+              <h1 className="font-display text-2xl font-bold uppercase">{t("app.title")}</h1>
+              <p className="mt-1 text-gray-600">{t("app.description")}</p>
+            </div>
             <BadgeFlasher advanced={advancedMode} supported={transportSupport.serial} />
             <PeripheralFlasher advanced={advancedMode} supported={transportSupport.usb} />
           </div>

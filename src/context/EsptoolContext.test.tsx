@@ -46,7 +46,11 @@ beforeEach(() => {
 describe("serial lifecycle", () => {
   it("clears connecting state when chooser is cancelled", async () => {
     vi.mocked(navigator.serial.requestPort).mockRejectedValue(new DOMException("cancelled", "NotFoundError"));
-    render(<EsptoolContextProvider><Probe /></EsptoolContextProvider>);
+    render(
+      <EsptoolContextProvider>
+        <Probe />
+      </EsptoolContextProvider>,
+    );
 
     await act(async () => expect(await context.connect()).toBe(false));
 
@@ -59,7 +63,11 @@ describe("serial lifecycle", () => {
     vi.mocked(navigator.serial.requestPort).mockResolvedValue({} as SerialPort);
     mocks.main.mockResolvedValue(undefined);
     mocks.disconnect.mockResolvedValue(undefined);
-    render(<EsptoolContextProvider><Probe /></EsptoolContextProvider>);
+    render(
+      <EsptoolContextProvider>
+        <Probe />
+      </EsptoolContextProvider>,
+    );
 
     await act(async () => expect(await context.connect()).toBe(true));
     expect(context.isConnected).toBe(true);

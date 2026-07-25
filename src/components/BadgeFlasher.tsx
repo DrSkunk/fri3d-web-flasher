@@ -7,12 +7,13 @@ import { ConnectionButton } from "./ConnectionButton";
 import { EraseFlashButton } from "./EraseFlashButton";
 import { BadgeInstructions, HelpButton } from "./HelpDialog";
 import { useTranslation } from "../context/LanguageContext";
-import { clearFirmwareCache, downloadAsset, fetchReleases, FirmwareAsset } from "../lib/firmware";
+import { clearFirmwareCache, downloadAsset, fetchReleases, type FirmwareAsset } from "../lib/firmware";
 
-// The badge firmware releases ship one full flash image per badge generation:
-// `full_<fw>_firmware_for_<badge>_badge.bin`, flashed at address 0x0.
 const ASSET_REGEX = /^full_\d+_firmware_for_(\d+)_badge\.bin$/;
 const DEFAULT_BADGE = "2026";
+const BADGE_GENERATIONS = ["2026", "2024"];
+
+type FirmwareSource = "release" | "local";
 
 interface BadgeOption {
   badge: string;
@@ -27,49 +28,55 @@ interface FlashableRelease {
 }
 
 const selectClassName = clsx(
-  "rounded-md border-4 border-black bg-white px-3 py-2 font-display text-sm font-bold uppercase text-black shadow-hard-sm",
-  "disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none",
+  "w-full rounded-md border-2 border-black bg-white px-3 py-2 font-display text-sm font-bold text-black",
+  "focus:outline-none focus:ring-3 focus:ring-fri3d-purple-light disabled:border-gray-300 disabled:text-gray-400",
 );
 
-export function BadgeFlasher({ advanced = false }: { advanced?: boolean }) {
-  const { flash, isFlashing, flashProgress, deviceInfo } = useContext(EsptoolContext);
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function BadgeFlasher({ advanced = false, supported = true }: { advanced?: boolean; supported?: boolean }) {
+  const { flash, isConnected, isFlashing, flashProgress, deviceInfo } = useContext(EsptoolContext);
   const { t } = useTranslation();
 
   const [releases, setReleases] = useState<FlashableRelease[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-
-  const [selectedTag, setSelectedTag] = useState<string>("");
-  const [selectedBadge, setSelectedBadge] = useState<string>(DEFAULT_BADGE);
+  const [source, setSource] = useState<FirmwareSource>("release");
+  const [localFirmware, setLocalFirmware] = useState<File | null>(null);
+  const [selectedTag, setSelectedTag] = useState("");
+  const [selectedBadge, setSelectedBadge] = useState(DEFAULT_BADGE);
 
   const loadReleases = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(false);
       const data = await fetchReleases("badge", forceRefresh);
-      const flashable: FlashableRelease[] = data
+      const flashable = data
         .map((release) => ({
           tag: release.tag_name,
           name: release.name || release.tag_name,
           prerelease: release.prerelease,
           badges: release.assets
             .map((asset) => {
-              const match = asset.name.match(ASSET_REGEX);
-              return match ? ({ badge: match[1], asset } satisfies BadgeOption) : null;
+              const badge = asset.hardware ?? asset.name.match(ASSET_REGEX)?.[1];
+              return badge ? ({ badge, asset } satisfies BadgeOption) : null;
             })
             .filter((badge): badge is BadgeOption => badge !== null)
-            .sort((a, b) => b.badge.localeCompare(a.badge)),
+            .sort((left, right) => right.badge.localeCompare(left.badge)),
         }))
         .filter((release) => release.badges.length > 0);
 
       setReleases(flashable);
-      if (flashable.length > 0) {
-        setSelectedTag(flashable[0].tag);
-      }
-    } catch (e) {
-      console.error(e);
+      if (flashable.length > 0) setSelectedTag(flashable[0].tag);
+    } catch (loadError) {
+      console.error(loadError);
       setError(true);
     } finally {
       setLoading(false);
@@ -77,21 +84,18 @@ export function BadgeFlasher({ advanced = false }: { advanced?: boolean }) {
   }, []);
 
   useEffect(() => {
-    loadReleases();
+    void loadReleases();
   }, [loadReleases]);
+
+  useEffect(() => {
+    if (!advanced) setSource("release");
+  }, [advanced]);
 
   const selectedRelease = useMemo(() => releases.find((release) => release.tag === selectedTag), [releases, selectedTag]);
 
-  // Keep the selected badge valid for the chosen release, preferring 2026.
   useEffect(() => {
-    if (!selectedRelease) {
-      return;
-    }
-    const hasSelected = selectedRelease.badges.some((badge) => badge.badge === selectedBadge);
-    if (!hasSelected) {
-      const preferred = selectedRelease.badges.find((badge) => badge.badge === DEFAULT_BADGE);
-      setSelectedBadge((preferred ?? selectedRelease.badges[0]).badge);
-    }
+    if (!selectedRelease || selectedRelease.badges.some((badge) => badge.badge === selectedBadge)) return;
+    setSelectedBadge((selectedRelease.badges.find((badge) => badge.badge === DEFAULT_BADGE) ?? selectedRelease.badges[0]).badge);
   }, [selectedRelease, selectedBadge]);
 
   const selectedAsset = useMemo(
@@ -99,22 +103,35 @@ export function BadgeFlasher({ advanced = false }: { advanced?: boolean }) {
     [selectedRelease, selectedBadge],
   );
 
+  const busy = downloading || isFlashing;
+  const canFlash = supported && !busy && (source === "local" ? Boolean(localFirmware) : Boolean(selectedAsset));
+
+  function selectLocalFile(file: File | null) {
+    setLocalFirmware(file);
+    const generation = file?.name.match(ASSET_REGEX)?.[1];
+    if (generation) setSelectedBadge(generation);
+  }
+
   async function handleFlash() {
-    if (!selectedAsset || !selectedRelease) {
-      return;
-    }
+    if (!canFlash) return;
     setDownloading(true);
+    setDownloadProgress(null);
     try {
-      const buffer = await downloadAsset(selectedAsset);
+      const buffer =
+        source === "local"
+          ? await localFirmware!.arrayBuffer()
+          : await downloadAsset(selectedAsset!, false, (progress) => setDownloadProgress(progress));
       await flash({
-        filename: selectedAsset.name,
+        filename: source === "local" ? localFirmware!.name : selectedAsset!.name,
         data: new Uint8Array(buffer),
+        address: source === "local" ? 0 : (selectedAsset!.offset ?? 0),
       });
-    } catch (e) {
-      console.error(e);
+    } catch (flashError) {
+      console.error(flashError);
       toast.error(t("badge.downloadOrFlashError"));
     } finally {
       setDownloading(false);
+      setDownloadProgress(null);
     }
   }
 
@@ -128,109 +145,216 @@ export function BadgeFlasher({ advanced = false }: { advanced?: boolean }) {
     }
   }
 
-  const busy = downloading || isFlashing;
-
   return (
-    <div className="shadow-hard-sm mb-4 w-full max-w-4xl rounded-md border-4 border-black bg-white p-4">
-      <h3 className="font-display mb-3 text-lg font-bold uppercase">{t("badge.title")}</h3>
-
-      {advanced && (
-        <div className="mb-4">
-          <div className="flex gap-3">
-            <ConnectionButton />
-            <EraseFlashButton />
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
-            <div>
-              {t("badge.chip")}: {deviceInfo.chipName || t("flash.unknown")}
-            </div>
-            <div>
-              {t("badge.mac")}: {deviceInfo.mac || t("flash.unknown")}
-            </div>
-            <div>
-              {t("badge.features")}:
-              <ul>
-                {deviceInfo.features.split(",").map((feature) => (
-                  <li className="ml-8 list-disc" key={feature}>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              {t("badge.crystal")}: {deviceInfo.crystal || t("flash.unknown")}
-            </div>
-          </div>
+    <section className="shadow-hard mb-6 w-full rounded-lg border-4 border-black bg-white">
+      <header className="flex items-center justify-between border-b-3 border-black px-5 py-4">
+        <div>
+          <h2 className="font-display text-xl font-bold uppercase">{t("badge.titleShort")}</h2>
+          <p className="text-sm text-gray-500">ESP32 · WebSerial</p>
         </div>
-      )}
+        {advanced && (
+          <span className={clsx("text-sm font-bold", isConnected ? "text-fri3d-mint-dark" : "text-gray-500")}>
+            {isConnected ? t("connect.connected") : t("connect.notConnected")}
+          </span>
+        )}
+      </header>
 
-      {loading && <p className="font-display font-semibold">{t("common.loadingReleases")}</p>}
-      {!loading && (error || releases.length === 0) && <p className="font-display text-fri3d-red font-semibold">{t("badge.fetchError")}</p>}
+      <div className="p-5">
+        {!supported && <p className="text-fri3d-red mb-4 font-semibold">{t("transport.serialUnsupported")}</p>}
 
-      {!loading && !error && releases.length > 0 && (
-        <div className={clsx("flex gap-3", advanced ? "flex-row flex-wrap items-end" : "flex-col")}>
-          {advanced && (
-            <>
-              <label className="flex flex-col gap-1">
-                <span className="font-display text-xs font-bold tracking-wide uppercase">{t("common.version")}</span>
-                <select
-                  className={selectClassName}
-                  value={selectedTag}
+        {advanced && (
+          <div className="mb-6 border-b-2 border-gray-200 pb-5">
+            <h3 className="font-display mb-3 font-bold uppercase">{t("badge.stepConnectTitle")}</h3>
+            <div className="flex flex-wrap gap-3">
+              <ConnectionButton disabled={!supported} />
+              {isConnected && <EraseFlashButton />}
+            </div>
+            {isConnected && (
+              <dl className="mt-4 grid gap-x-5 gap-y-3 bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <dt className="text-xs font-bold text-gray-500 uppercase">{t("badge.chip")}</dt>
+                  <dd className="font-semibold">{deviceInfo.chipName || t("flash.unknown")}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold text-gray-500 uppercase">{t("badge.mac")}</dt>
+                  <dd className="font-mono text-sm">{deviceInfo.mac || t("flash.unknown")}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold text-gray-500 uppercase">{t("badge.crystal")}</dt>
+                  <dd className="font-semibold">{deviceInfo.crystal || t("flash.unknown")}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold text-gray-500 uppercase">{t("badge.features")}</dt>
+                  <dd className="text-sm">{deviceInfo.features || t("flash.unknown")}</dd>
+                </div>
+              </dl>
+            )}
+          </div>
+        )}
+
+        <div className="mb-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="font-display font-bold uppercase">{t("badge.stepFirmwareTitle")}</h3>
+            {advanced && (
+              <div className="flex gap-4 border-b-2 border-gray-200 text-sm font-bold">
+                <button
+                  type="button"
+                  className={clsx("pb-2", source === "release" && "border-b-3 border-black")}
+                  onClick={() => setSource("release")}
+                  aria-pressed={source === "release"}
                   disabled={busy}
-                  onChange={(event) => setSelectedTag(event.target.value)}
                 >
-                  {releases.map((release) => (
-                    <option key={release.tag} value={release.tag}>
-                      {release.name}
-                      {release.prerelease ? " (pre-release)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-1">
-                <span className="font-display text-xs font-bold tracking-wide uppercase">{t("badge.badge")}</span>
-                <select
-                  className={selectClassName}
-                  value={selectedBadge}
-                  disabled={busy || !selectedRelease}
-                  onChange={(event) => setSelectedBadge(event.target.value)}
+                  {t("common.officialRelease")}
+                </button>
+                <button
+                  type="button"
+                  className={clsx("pb-2", source === "local" && "border-b-3 border-black")}
+                  onClick={() => setSource("local")}
+                  aria-pressed={source === "local"}
+                  disabled={busy}
                 >
-                  {selectedRelease?.badges.map((badge) => (
-                    <option key={badge.badge} value={badge.badge}>
-                      {badge.badge} badge
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  {t("common.localFile")}
+                </button>
+              </div>
+            )}
+          </div>
 
-              <Button type={ButtonType.Regular} onClick={handleRefresh} disabled={busy || refreshing}>
-                {refreshing ? t("common.refreshing") : t("common.refreshReleases")}
-              </Button>
-            </>
+          {source === "release" ? (
+            <div>
+              {loading && <p className="text-gray-500">{t("common.loadingReleases")}</p>}
+              {!loading && error && (
+                <div className="text-fri3d-red flex items-center gap-3 text-sm">
+                  <span>{t("badge.fetchError")}</span>
+                  <button type="button" className="font-bold underline" onClick={handleRefresh}>
+                    {t("common.retry")}
+                  </button>
+                </div>
+              )}
+              {!loading &&
+                !error &&
+                selectedRelease &&
+                (advanced ? (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+                    <label className="grid gap-1">
+                      <span className="text-xs font-bold uppercase">{t("common.version")}</span>
+                      <select
+                        className={selectClassName}
+                        value={selectedTag}
+                        disabled={busy || !supported}
+                        onChange={(event) => setSelectedTag(event.target.value)}
+                      >
+                        {releases.map((release) => (
+                          <option key={release.tag} value={release.tag}>
+                            {release.name}
+                            {release.prerelease ? ` · ${t("common.prerelease")}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs font-bold uppercase">{t("badge.badge")}</span>
+                      <select
+                        className={selectClassName}
+                        value={selectedBadge}
+                        disabled={busy || !supported}
+                        onChange={(event) => setSelectedBadge(event.target.value)}
+                      >
+                        {selectedRelease.badges.map((badge) => (
+                          <option key={badge.badge} value={badge.badge}>
+                            {t("badge.badgeGeneration", { badge: badge.badge })}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="text-left text-sm font-bold underline lg:pb-2"
+                      onClick={handleRefresh}
+                      disabled={busy || refreshing}
+                    >
+                      {refreshing ? t("common.refreshing") : t("common.refreshReleases")}
+                    </button>
+                  </div>
+                ) : (
+                  <p>
+                    <strong>{selectedRelease.name}</strong> · {t("badge.badgeGeneration", { badge: selectedBadge })} ·{" "}
+                    {selectedAsset ? formatBytes(selectedAsset.size) : ""}
+                  </p>
+                ))}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
+              <label className="flex cursor-pointer items-center justify-between gap-4 rounded-md border-2 border-dashed border-gray-400 px-4 py-3 hover:border-black">
+                <input
+                  type="file"
+                  accept=".bin,application/octet-stream"
+                  className="sr-only"
+                  disabled={busy || !supported}
+                  onChange={(event) => selectLocalFile(event.target.files?.[0] ?? null)}
+                />
+                <span className="truncate font-semibold">{localFirmware?.name || t("common.chooseFirmwareFile")}</span>
+                <span className="shrink-0 text-sm text-gray-500">{localFirmware ? formatBytes(localFirmware.size) : ".bin"}</span>
+              </label>
+              <select
+                aria-label={t("badge.targetBadge")}
+                className={selectClassName}
+                value={selectedBadge}
+                disabled={busy || !supported}
+                onChange={(event) => setSelectedBadge(event.target.value)}
+              >
+                {BADGE_GENERATIONS.map((badge) => (
+                  <option key={badge} value={badge}>
+                    {t("badge.badgeGeneration", { badge })}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
+        </div>
 
-          <div className="flex items-center gap-3">
-            <Button type={ButtonType.Primary} onClick={handleFlash} disabled={busy || !selectedAsset} className="flex-1">
-              {downloading && !isFlashing
-                ? t("common.downloadingFirmware")
-                : advanced
-                  ? t("badge.downloadAndFlash")
-                  : t("badge.flashLatest", { badge: selectedBadge })}
-            </Button>
+        <footer
+          className={clsx(
+            "flex flex-col gap-3 border-t-2 border-gray-200 pt-4 sm:flex-row sm:items-center",
+            advanced ? "sm:justify-between" : "sm:justify-end",
+          )}
+        >
+          {advanced && (
+            <p className="min-w-0 truncate text-sm text-gray-600">
+              {source === "local"
+                ? localFirmware?.name || t("common.noFileSelected")
+                : selectedRelease?.name || t("common.noReleaseSelected")}{" "}
+              · {t("badge.badgeGeneration", { badge: selectedBadge })}
+            </p>
+          )}
+          <div className="flex shrink-0 items-center gap-3">
             <HelpButton title={t("badge.helpTitle", { badge: selectedBadge })}>
               <BadgeInstructions badge={selectedBadge} />
             </HelpButton>
+            <Button type={ButtonType.Primary} onClick={handleFlash} disabled={!canFlash}>
+              {isFlashing
+                ? t("common.flashing")
+                : downloading
+                  ? downloadProgress === null
+                    ? t("common.readingFirmware")
+                    : t("common.downloadingProgress", { progress: String(downloadProgress) })
+                  : source === "local"
+                    ? t("badge.flashLocalFile")
+                    : t("badge.downloadAndFlash")}
+            </Button>
           </div>
-        </div>
-      )}
+        </footer>
 
-      {isFlashing && (
-        <div className="mt-3">
-          <progress value={flashProgress} max="100" className="w-full" />
-          <p className="font-display text-fri3d-red animate-pulse text-center font-bold uppercase">{t("flash.doNotUnplug")}</p>
-        </div>
-      )}
-    </div>
+        {isFlashing && (
+          <div className="mt-4">
+            <div className="mb-1 flex justify-between text-sm font-bold">
+              <span>{t("flash.progress")}</span>
+              <span>{Math.round(flashProgress)}%</span>
+            </div>
+            <progress value={flashProgress} max="100" className="accent-fri3d-purple h-2 w-full" />
+            <p className="text-fri3d-red mt-1 text-center text-sm font-bold uppercase">{t("flash.doNotUnplug")}</p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
