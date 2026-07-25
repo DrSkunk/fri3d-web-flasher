@@ -5,10 +5,12 @@ import { NoSerialOverlay } from "./components/NoSerialOverlay";
 import { BadgeFlasher } from "./components/BadgeFlasher";
 import { PeripheralFlasher } from "./components/PeripheralFlasher";
 import { useTranslation } from "./context/LanguageContext";
+import { useTransportSupport } from "./lib/browserCapabilities";
 
 export function App() {
   const [advancedMode, setAdvancedMode] = useState(false);
   const { language, setLanguage, t } = useTranslation();
+  const transportSupport = useTransportSupport();
 
   useEffect(() => {
     const stored = localStorage.getItem("advancedMode");
@@ -23,7 +25,7 @@ export function App() {
 
   return (
     <>
-      <NoSerialOverlay />
+      <NoSerialOverlay support={transportSupport} />
       <ToastContainer />
       <div className="grid min-h-screen grid-rows-[auto_1fr] bg-white text-black">
         <header className="flex items-center justify-between bg-black text-white">
@@ -55,8 +57,8 @@ export function App() {
 
         <main className="flex items-start justify-center p-6">
           <div className="flex w-full max-w-4xl flex-col items-center">
-            <BadgeFlasher advanced={advancedMode} />
-            <PeripheralFlasher advanced={advancedMode} />
+            <BadgeFlasher advanced={advancedMode} supported={transportSupport.serial} />
+            <PeripheralFlasher advanced={advancedMode} supported={transportSupport.usb} />
           </div>
         </main>
       </div>

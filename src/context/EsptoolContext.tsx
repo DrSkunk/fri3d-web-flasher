@@ -1,111 +1,94 @@
 import { ESPLoader, FlashOptions, Transport } from "esptool-js";
-import { useState, createContext, useRef, useEffect } from "react";
-import { Firmware } from "../interfaces/Firmware";
-import { useTranslation } from "./LanguageContext";
+import { createContext, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import CryptoJS from "crypto-js";
+import { Firmware } from "../interfaces/Firmware";
+import { useTranslation } from "./LanguageContext";
+
+const MAX_LOG_LINES = 500;
+
+export type BadgePhase = "idle" | "connecting" | "erasing" | "writing" | "success" | "error";
 
 interface EsptoolContextType {
   flash: (firmware: Firmware) => Promise<void>;
   logs: string[];
-  connect: () => Promise<void>;
-  disconnect: () => void;
+  connect: (baudrate?: number) => Promise<boolean>;
+  disconnect: () => Promise<void>;
   isConnected: boolean;
   isConnecting: boolean;
   isFlashing: boolean;
   flashProgress: number;
+  phase: BadgePhase;
   eraseFlash: () => Promise<void>;
-  deviceInfo: {
-    chipName: string;
-    mac: string;
-    features: string;
-    crystal: string;
-  };
+  deviceInfo: { chipName: string; mac: string; features: string; crystal: string };
 }
+
+const emptyDeviceInfo = { chipName: "", mac: "", features: "", crystal: "" };
 
 export const EsptoolContext = createContext<EsptoolContextType>({
   flash: async () => {},
   logs: [],
-  connect: async () => {},
-  disconnect: () => {},
+  connect: async () => false,
+  disconnect: async () => {},
   isConnected: false,
   isConnecting: false,
   isFlashing: false,
   flashProgress: 0,
+  phase: "idle",
   eraseFlash: async () => {},
-  deviceInfo: {
-    chipName: "",
-    mac: "",
-    features: "",
-    crystal: "",
-  },
+  deviceInfo: emptyDeviceInfo,
 });
+
+function normalizeChipName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
 export function EsptoolContextProvider({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const [logs, setLogs] = useState<string[]>([]);
-  const baudrate = 115200;
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [phase, setPhase] = useState<BadgePhase>("idle");
   const [isConnected, setIsConnected] = useState(false);
-  const [isFlashing, setIsFlashing] = useState(false);
   const [flashProgress, setFlashProgress] = useState(0);
+  const [deviceInfo, setDeviceInfo] = useState(emptyDeviceInfo);
 
   const device = useRef<SerialPort | null>(null);
   const esploader = useRef<ESPLoader | null>(null);
   const transport = useRef<Transport | null>(null);
+  const isConnecting = phase === "connecting";
+  const isFlashing = phase === "writing";
 
-  // Warn the user before they close/reload the tab while flashing is in
-  // progress, since interrupting it can leave the badge in a broken state.
   useEffect(() => {
-    if (!isFlashing) {
-      return;
-    }
+    if (!isFlashing) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      // Required for the native confirmation dialog in some browsers.
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isFlashing]);
 
-  const [deviceInfo, setDeviceInfo] = useState<{
-    chipName: string;
-    mac: string;
-    features: string;
-    crystal: string;
-  }>({
-    chipName: "",
-    mac: "",
-    features: "",
-    crystal: "",
-  });
+  function appendLog(data: string, continueLine = false) {
+    setLogs((previous) => {
+      let next: string[];
+      if (continueLine && previous.length > 0) {
+        next = [...previous.slice(0, -1), previous[previous.length - 1] + data];
+      } else {
+        next = [...previous, data];
+      }
+      return next.slice(-MAX_LOG_LINES);
+    });
+  }
 
   function captureInfo(data: string) {
     const entries = [
-      {
-        key: "Chip is ",
-        value: "chipName",
-      },
-      {
-        key: "MAC: ",
-        value: "mac",
-      },
-      {
-        key: "Features: ",
-        value: "features",
-      },
-      {
-        key: "Crystal is ",
-        value: "crystal",
-      },
-    ];
+      { key: "Chip is ", value: "chipName" },
+      { key: "MAC: ", value: "mac" },
+      { key: "Features: ", value: "features" },
+      { key: "Crystal is ", value: "crystal" },
+    ] as const;
     for (const entry of entries) {
       if (data.startsWith(entry.key)) {
-        setDeviceInfo((previous) => ({
-          ...previous,
-          [entry.value]: data.replace(entry.key, "").replace("\r", "").trim(),
-        }));
+        setDeviceInfo((previous) => ({ ...previous, [entry.value]: data.replace(entry.key, "").replace("\r", "").trim() }));
         return;
       }
     }
@@ -118,112 +101,120 @@ export function EsptoolContextProvider({ children }: { children: React.ReactNode
     writeLine(data: string) {
       captureInfo(data);
       console.log(data);
-      setLogs((prev) => {
-        return [...prev, data];
-      });
+      appendLog(data);
     },
     write(data: string) {
       console.log(data);
-      setLogs((prev) => {
-        const lastLine = prev?.[prev.length - 1];
-        if (lastLine) {
-          return [...prev.slice(0, prev.length - 1), lastLine + data];
-        }
-        return [data];
-      });
+      appendLog(data, true);
     },
   };
 
-  function disconnect() {
+  const clearConnection = useCallback(() => {
     device.current = null;
     transport.current = null;
     esploader.current = null;
     setIsConnected(false);
-  }
+    setDeviceInfo(emptyDeviceInfo);
+    setPhase((current) => (current === "writing" ? "error" : "idle"));
+  }, []);
 
-  async function connect() {
-    if (isConnecting) {
-      return;
-    }
-    setIsConnecting(true);
-    device.current = await navigator.serial.requestPort();
-    transport.current = new Transport(device.current, false);
-
+  const disconnect = useCallback(async () => {
+    const currentTransport = transport.current;
     try {
-      const flashOptions = {
-        transport: transport.current,
-        baudrate,
-        romBaudrate: baudrate,
-        terminal: espLoaderTerminal,
-      };
-      esploader.current = new ESPLoader(flashOptions);
+      currentTransport?.setDeviceLostCallback(null);
+      if (currentTransport) await currentTransport.disconnect();
+    } finally {
+      clearConnection();
+    }
+  }, [clearConnection]);
 
-      await esploader.current.main();
-      setIsConnecting(false);
+  async function connect(baudrate = 115200): Promise<boolean> {
+    if (phase === "connecting" || isConnected) return isConnected;
+    if (!("serial" in navigator) || !navigator.serial) {
+      toast.error(t("transport.serialUnsupported"));
+      return false;
+    }
+
+    setPhase("connecting");
+    let nextTransport: Transport | null = null;
+    try {
+      const port = await navigator.serial.requestPort();
+      nextTransport = new Transport(port, false);
+      nextTransport.setDeviceLostCallback(() => {
+        clearConnection();
+        toast.error(t("connect.disconnected"));
+      });
+      const nextLoader = new ESPLoader({
+        transport: nextTransport,
+        baudrate,
+        terminal: espLoaderTerminal,
+      });
+      await nextLoader.main();
+      device.current = port;
+      transport.current = nextTransport;
+      esploader.current = nextLoader;
       setIsConnected(true);
+      setPhase("idle");
+      return true;
     } catch (error) {
-      toast.error(t("connect.error"));
-      if (typeof error === "string") {
-        espLoaderTerminal.writeLine(error);
-      } else if (error instanceof Error) {
-        espLoaderTerminal.writeLine(error.message);
-      }
+      console.error(error);
+      if (error instanceof Error) appendLog(error.message);
+      await nextTransport?.disconnect().catch(console.warn);
+      clearConnection();
+      setPhase("error");
+      toast.error(error instanceof DOMException && error.name === "NotFoundError" ? t("connect.cancelled") : t("connect.error"));
+      return false;
     }
   }
 
   async function flash(firmware: Firmware) {
-    if (!esploader.current) {
-      await connect();
+    if (!esploader.current && !(await connect(firmware.baudrate))) throw new Error(t("connect.error"));
+    const loader = esploader.current;
+    if (!loader) throw new Error(t("connect.error"));
+
+    if (firmware.expectedChip && normalizeChipName(loader.chip.CHIP_NAME) !== normalizeChipName(firmware.expectedChip)) {
+      throw new Error(t("flash.wrongChip", { expected: firmware.expectedChip, actual: loader.chip.CHIP_NAME }));
     }
-    if (!esploader.current) {
-      return;
-    }
-    setIsFlashing(true);
+
+    setPhase("writing");
     setFlashProgress(0);
     try {
       const flashOptions: FlashOptions = {
-        fileArray: [{ address: 0, data: firmware.data }],
+        fileArray: [{ address: firmware.address, data: firmware.data }],
         flashSize: "16MB",
         flashMode: "dio",
         flashFreq: "80m",
         eraseAll: false,
         compress: true,
-        reportProgress: (_fileIndex, written, total) => {
-          setFlashProgress((written / total) * 100);
-        },
+        reportProgress: (_fileIndex, written, total) => setFlashProgress((written / total) * 100),
         calculateMD5Hash: (image) => CryptoJS.MD5(CryptoJS.lib.WordArray.create(image)).toString(),
       };
-      await esploader.current.writeFlash(flashOptions);
-      toast.success(t("flash.success"), {
-        autoClose: false,
-      });
+      await loader.writeFlash(flashOptions);
+      setPhase("success");
+      toast.success(t("flash.success"), { autoClose: false });
+    } catch (error) {
+      setPhase("error");
+      throw error;
     } finally {
-      setIsFlashing(false);
       setFlashProgress(0);
     }
   }
 
   async function eraseFlash() {
-    if (!esploader.current) {
-      return;
+    if (!esploader.current) throw new Error(t("connect.error"));
+    setPhase("erasing");
+    try {
+      await esploader.current.eraseFlash();
+      setPhase("idle");
+    } catch (error) {
+      setPhase("error");
+      throw error;
     }
-    await esploader.current.eraseFlash();
   }
 
   return (
     <EsptoolContext.Provider
-      value={{
-        flash,
-        logs,
-        connect,
-        disconnect,
-        eraseFlash,
-        deviceInfo,
-        isConnecting,
-        isConnected,
-        isFlashing,
-        flashProgress,
-      }}
+      value={{ flash, logs, connect, disconnect, eraseFlash, deviceInfo, isConnecting, isConnected, isFlashing, flashProgress, phase }}
     >
       {children}
     </EsptoolContext.Provider>

@@ -20,13 +20,13 @@ export function EraseFlashButton() {
     setIsErasing(true);
     try {
       await eraseFlash();
+      toast.success(t("erase.success"));
+      setShowDialog(false);
     } catch (error) {
       console.error("Failed to erase flash memory", error);
       toast.error(t("erase.error"));
     } finally {
       setIsErasing(false);
-      setShowDialog(false);
-      toast.success(t("erase.success"));
     }
   }
 

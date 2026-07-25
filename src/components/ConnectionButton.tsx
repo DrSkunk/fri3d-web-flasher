@@ -13,14 +13,14 @@ export function ConnectionButton() {
 
   if (isConnected) {
     return (
-      <Button onClick={disconnect} disabled={isFlashing}>
+      <Button onClick={() => void disconnect()} disabled={isFlashing}>
         {t("connect.disconnect")}
       </Button>
     );
   }
 
   return (
-    <Button onClick={connect} disabled={isFlashing}>
+    <Button onClick={() => void connect()} disabled={isFlashing}>
       {t("connect.connect")}
     </Button>
   );

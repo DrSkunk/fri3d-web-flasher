@@ -1,5 +1,8 @@
-// A single full-image firmware binary, flashed at address 0x0.
+// Firmware image and catalog-derived flash settings.
 export interface Firmware {
   filename: string;
   data: Uint8Array;
+  address: number;
+  expectedChip?: string;
+  baudrate?: number;
 }

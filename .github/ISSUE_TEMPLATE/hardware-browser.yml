@@ -1,0 +1,73 @@
+name: Hardware or browser problem
+description: Report flashing, connection, firmware, or browser compatibility problems
+title: "[hardware] "
+labels: ["hardware"]
+body:
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Hardware
+      options:
+        - Badge 2026
+        - Badge 2024
+        - Communicator 2026
+        - Communicator 2024
+        - DJ Addon 2026
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+      placeholder: e.g. 1.1.3
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: e.g. Chrome 134
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Failure stage
+      options:
+        - Loading releases
+        - Downloading
+        - Selecting device
+        - Connecting
+        - Erasing
+        - Writing
+        - Verifying
+        - Resetting
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Use Copy diagnostics where available. Remove MAC addresses, serial numbers, and other identifiers.
+      render: text
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed MAC addresses, serial numbers, and private data from this report.
+          required: true
