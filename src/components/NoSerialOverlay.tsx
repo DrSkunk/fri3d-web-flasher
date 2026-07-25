@@ -1,17 +1,10 @@
-import { useEffect, useState } from "react";
 import { useTranslation } from "../context/LanguageContext";
+import type { TransportSupport } from "../lib/browserCapabilities";
 
-export function NoSerialOverlay() {
-  const [hasSupportedTransport, setHasSupportedTransport] = useState(true);
+export function NoSerialOverlay({ support }: { support: TransportSupport }) {
   const { t } = useTranslation();
 
-  useEffect(() => {
-    const serialSupported = typeof navigator.serial !== "undefined";
-    const usbSupported = typeof navigator.usb !== "undefined";
-    setHasSupportedTransport(serialSupported || usbSupported);
-  }, []);
-
-  if (hasSupportedTransport) {
+  if (support.serial || support.usb) {
     return null;
   }
 
