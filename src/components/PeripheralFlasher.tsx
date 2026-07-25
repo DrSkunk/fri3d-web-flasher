@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { toast } from "react-toastify";
 import { WchIspFlasher, WebUsbTransport, type Progress } from "wchisp-web";
 import { Button, ButtonType } from "./Button";
-import { downloadAsset, fetchReleases, GithubAsset } from "../lib/github";
+import { downloadAsset, fetchReleases, FirmwareAsset } from "../lib/firmware";
 import { HelpButton, PeripheralInstructions } from "./HelpDialog";
 import { useTranslation } from "../context/LanguageContext";
 
@@ -26,7 +26,7 @@ interface FlashableRelease {
   tag: string;
   name: string;
   prerelease: boolean;
-  asset: GithubAsset;
+  asset: FirmwareAsset;
 }
 
 const selectClassName = clsx(
