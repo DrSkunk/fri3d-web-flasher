@@ -7,7 +7,7 @@ import { ConnectionButton } from "./ConnectionButton";
 import { EraseFlashButton } from "./EraseFlashButton";
 import { BadgeInstructions, HelpButton } from "./HelpDialog";
 import { useTranslation } from "../context/LanguageContext";
-import { clearFirmwareCache, downloadAsset, fetchReleases, GithubAsset } from "../lib/github";
+import { clearFirmwareCache, downloadAsset, fetchReleases, FirmwareAsset } from "../lib/firmware";
 
 // The badge firmware releases ship one full flash image per badge generation:
 // `full_<fw>_firmware_for_<badge>_badge.bin`, flashed at address 0x0.
@@ -16,7 +16,7 @@ const DEFAULT_BADGE = "2026";
 
 interface BadgeOption {
   badge: string;
-  asset: GithubAsset;
+  asset: FirmwareAsset;
 }
 
 interface FlashableRelease {

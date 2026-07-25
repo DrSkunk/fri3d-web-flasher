@@ -5,7 +5,7 @@ Every edition ships a main **badge** (ESP32-based, flashed over [WebSerial](http
 with esptool-js) and optional **peripherals** (WCH-based, e.g. Communicator and DJ addon, flashed
 over WebUSB with wchisp-web).
 
-The app lists firmware releases straight from the Fri3dCamp GitHub repos. In simple mode you flash
+The app lists firmware releases from `https://fri3d-firmware.drskunk.be/api.json`. In simple mode you flash
 the latest release with one click; advanced mode lets you pick a specific release/hardware version,
 erase flash, and inspect the connected chip. Downloads are cached in the browser so re-flashing
 doesn't re-download.
@@ -22,12 +22,10 @@ Hosted at https://fri3dcamp.github.io/fri3d-web-flasher/
 
 ## Architecture
 
-- `src/lib/github.ts` — release listing + asset download (via proxy, with Cache Storage caching)
+- `src/lib/firmware.ts` — firmware catalog + direct asset downloads with Cache Storage caching
 - `src/components/BadgeFlasher.tsx` — ESP32 badge flashing (esptool-js, WebSerial)
 - `src/components/PeripheralFlasher.tsx` — WCH peripheral flashing (wchisp-web, WebUSB)
-- `api/` — serverless proxies (Vercel + Vite dev middleware) for GitHub's API and release
-  downloads, since GitHub serves neither with CORS headers. Firmware fetching may move to a
-  central caching API later; swap it in `src/lib/github.ts`.
+- `https://fri3d-firmware.drskunk.be/api.json` — central firmware catalog
 
 ## Development
 
