@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&family=Open+Sans:ital,wght@0,400;0,700;1,400&display=swap");
 @import "tailwindcss";
 
 @plugin "@tailwindcss/typography";
@@ -11,8 +12,8 @@
   --color-fri3d-red: rgb(255 62 62);
   --color-fri3d-darkgrey: rgb(45 45 45);
 
-  --font-display: ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
-  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Montserrat", system-ui, sans-serif;
+  --font-body: "Open Sans", system-ui, sans-serif;
 }
 
 /*
