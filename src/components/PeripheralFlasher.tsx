@@ -313,13 +313,18 @@ export function PeripheralFlasher({ advanced = false, supported = true }: { adva
                         {release ? `${release.name} · ${formatBytes(release.asset.size)}` : t("common.noReleaseSelected")}
                       </p>
                     </div>
-                    <Button
-                      type={ButtonType.Primary}
-                      onClick={() => handleLatestFlash(peripheral)}
-                      disabled={flashing || !supported || !release}
-                    >
-                      {flashing ? t("common.flashing") : t("peripheral.flashLatestShort")}
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <HelpButton title={t("peripheral.helpTitle", { label: peripheral.label })}>
+                        <PeripheralInstructions />
+                      </HelpButton>
+                      <Button
+                        type={ButtonType.Primary}
+                        onClick={() => handleLatestFlash(peripheral)}
+                        disabled={flashing || !supported || !release}
+                      >
+                        {flashing ? t("common.flashing") : t("peripheral.flashLatestShort")}
+                      </Button>
+                    </div>
                   </div>
                 );
               })}

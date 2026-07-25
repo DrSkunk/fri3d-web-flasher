@@ -91,12 +91,31 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
     if (!advanced) setSource("release");
   }, [advanced]);
 
-  const selectedRelease = useMemo(() => releases.find((release) => release.tag === selectedTag), [releases, selectedTag]);
+  const availableBadges = useMemo(
+    () =>
+      [...new Set(releases.flatMap((release) => release.badges.map((badge) => badge.badge)))].sort((left, right) =>
+        right.localeCompare(left),
+      ),
+    [releases],
+  );
+  const releasesForBadge = useMemo(
+    () => releases.filter((release) => release.badges.some((badge) => badge.badge === selectedBadge)),
+    [releases, selectedBadge],
+  );
+  const selectedRelease = useMemo(
+    () => releasesForBadge.find((release) => release.tag === selectedTag) ?? releasesForBadge[0],
+    [releasesForBadge, selectedTag],
+  );
 
   useEffect(() => {
-    if (!selectedRelease || selectedRelease.badges.some((badge) => badge.badge === selectedBadge)) return;
-    setSelectedBadge((selectedRelease.badges.find((badge) => badge.badge === DEFAULT_BADGE) ?? selectedRelease.badges[0]).badge);
-  }, [selectedRelease, selectedBadge]);
+    if (availableBadges.length > 0 && !availableBadges.includes(selectedBadge)) {
+      setSelectedBadge(availableBadges.includes(DEFAULT_BADGE) ? DEFAULT_BADGE : availableBadges[0]);
+      return;
+    }
+    if (releasesForBadge.length > 0 && !releasesForBadge.some((release) => release.tag === selectedTag)) {
+      setSelectedTag(releasesForBadge[0].tag);
+    }
+  }, [availableBadges, releasesForBadge, selectedBadge, selectedTag]);
 
   const selectedAsset = useMemo(
     () => selectedRelease?.badges.find((badge) => badge.badge === selectedBadge)?.asset,
@@ -236,22 +255,6 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
                 (advanced ? (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
                     <label className="grid gap-1">
-                      <span className="text-xs font-bold uppercase">{t("common.version")}</span>
-                      <select
-                        className={selectClassName}
-                        value={selectedTag}
-                        disabled={busy || !supported}
-                        onChange={(event) => setSelectedTag(event.target.value)}
-                      >
-                        {releases.map((release) => (
-                          <option key={release.tag} value={release.tag}>
-                            {release.name}
-                            {release.prerelease ? ` · ${t("common.prerelease")}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-1">
                       <span className="text-xs font-bold uppercase">{t("badge.badge")}</span>
                       <select
                         className={selectClassName}
@@ -259,9 +262,25 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
                         disabled={busy || !supported}
                         onChange={(event) => setSelectedBadge(event.target.value)}
                       >
-                        {selectedRelease.badges.map((badge) => (
-                          <option key={badge.badge} value={badge.badge}>
-                            {t("badge.badgeGeneration", { badge: badge.badge })}
+                        {availableBadges.map((badge) => (
+                          <option key={badge} value={badge}>
+                            {t("badge.badgeGeneration", { badge })}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs font-bold uppercase">{t("common.version")}</span>
+                      <select
+                        className={selectClassName}
+                        value={selectedRelease?.tag ?? ""}
+                        disabled={busy || !supported || releasesForBadge.length === 0}
+                        onChange={(event) => setSelectedTag(event.target.value)}
+                      >
+                        {releasesForBadge.map((release) => (
+                          <option key={release.tag} value={release.tag}>
+                            {release.name}
+                            {release.prerelease ? ` · ${t("common.prerelease")}` : ""}
                           </option>
                         ))}
                       </select>
