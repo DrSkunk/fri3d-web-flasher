@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { downloadAsset, sha256Hex, sortCatalogReleases, validateFirmwareCatalog, verifyFirmware, type FirmwareAsset } from "./firmware";
+import {
+  downloadAsset,
+  fetchReleases,
+  sha256Hex,
+  sortCatalogReleases,
+  validateBadgeHubProject,
+  validateBadgeHubVersions,
+  verifyFirmware,
+  type FirmwareAsset,
+} from "./firmware";
 
 function bytes(...values: number[]): ArrayBuffer {
   return Uint8Array.from(values).buffer;
@@ -49,7 +58,7 @@ describe("firmware integrity", () => {
   });
 });
 
-describe("catalog validation", () => {
+describe("BadgeHub metadata", () => {
   it("orders releases newest first", () => {
     const releases = sortCatalogReleases([
       { version: "1.0.0", publishedAt: "2026-01-01T00:00:00Z" },
@@ -59,17 +68,53 @@ describe("catalog validation", () => {
     expect(releases.map((release) => release.version)).toEqual(["1.2.0", "1.1.0", "1.0.0"]);
   });
 
-  it("rejects missing artifact metadata", () => {
+  it("rejects malformed version metadata", () => {
+    expect(() => validateBadgeHubVersions([{ version: "1.0.0", latestRevision: 1 }])).toThrow("latestPublishDate");
+  });
+
+  it("rejects missing file integrity metadata", () => {
     expect(() =>
-      validateFirmwareCatalog({
-        schemaVersion: 1,
-        devices: {
-          badge: {
-            flash: { tool: "esptool", chip: "esp32s3" },
-            releases: [{ version: "1.0.0", name: "1.0.0", prerelease: false, artifacts: [{ filename: "firmware.bin", url: "https://x" }] }],
-          },
+      validateBadgeHubProject({
+        version: {
+          revision: 1,
+          published_at: "2026-01-01T00:00:00Z",
+          files: [{ full_path: "firmware.bin", url: "https://badgehub.eu/firmware.bin", size_of_content: 10 }],
         },
       }),
-    ).toThrow("artifact.sha256");
+    ).toThrow("sha256");
+  });
+
+  it("loads every version and maps its revision files", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/versions")) {
+        return Response.json([
+          { version: "1.0.0", latestRevision: 1, latestPublishDate: "2026-01-01T00:00:00Z" },
+          { version: "1.1.0", latestRevision: 3, latestPublishDate: "2026-03-01T00:00:00Z" },
+        ]);
+      }
+      const revision = url.endsWith("rev3") ? 3 : 1;
+      return Response.json({
+        version: {
+          revision,
+          published_at: revision === 3 ? "2026-03-01T00:00:00Z" : "2026-01-01T00:00:00Z",
+          files: [
+            {
+              full_path: "firmware.bin",
+              url: `${url}/files/firmware.bin`,
+              size_of_content: revision,
+              sha256: String(revision).repeat(64),
+            },
+          ],
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const releases = await fetchReleases("dj2026");
+
+    expect(releases.map((release) => release.tag_name)).toEqual(["1.1.0", "1.0.0"]);
+    expect(releases.map((release) => release.assets[0].size)).toEqual([3, 1]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
