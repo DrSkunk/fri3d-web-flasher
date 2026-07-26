@@ -1,8 +1,8 @@
-// Shared helpers for fetching Fri3d firmware releases from the firmware catalog.
+// Shared helpers for fetching Fri3d firmware releases from BadgeHub.
 // Firmware downloads are validated and cached in Cache Storage so re-flashing
 // does not download the same artifact again.
 
-const FIRMWARE_API_URL = "https://fri3d-firmware.drskunk.be/api.json";
+const BADGEHUB_API_URL = "https://badgehub.eu/api/v3";
 const FIRMWARE_CACHE_NAME = "firmware-downloads";
 
 export interface FirmwareAsset {
@@ -22,93 +22,75 @@ export interface FirmwareRelease {
   assets: FirmwareAsset[];
 }
 
-interface CatalogArtifact {
-  filename: string;
+interface BadgeHubVersion {
+  version?: string;
+  latestRevision: number;
+  latestPublishDate: string;
+}
+
+interface BadgeHubFile {
+  full_path: string;
   url: string;
-  size: number;
+  size_of_content: number;
   sha256: string;
-  hardware?: string;
-  offset?: number;
 }
 
-interface CatalogRelease {
-  version: string;
-  name: string;
-  publishedAt: string;
-  prerelease: boolean;
-  artifacts: CatalogArtifact[];
+interface BadgeHubProject {
+  version: {
+    revision: number;
+    files: BadgeHubFile[];
+    published_at: string;
+  };
 }
 
-interface CatalogDevice {
-  releases: CatalogRelease[];
-}
-
-interface FirmwareCatalog {
-  schemaVersion: number;
-  devices: Record<string, CatalogDevice>;
-}
-
-const DEVICE_BY_KEY: Record<string, string> = {
-  badge: "badge",
-  communicator2026: "communicator-2026",
-  communicator2024: "communicator-2024",
-  dj2026: "dj-2026",
+const PROJECT_BY_KEY: Record<string, string> = {
+  badge: "com.micropythonos.esp32s3",
+  communicator2026: "communicator_2026",
+  communicator2024: "communicator_2024",
+  dj2026: "dj_2026",
 };
 
-let catalogPromise: Promise<FirmwareCatalog> | undefined;
-let refreshPromise: Promise<FirmwareCatalog> | undefined;
+const releasePromises = new Map<string, Promise<FirmwareRelease[]>>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function requireField(condition: boolean, field: string): asserts condition {
-  if (!condition) {
-    throw new Error(`Invalid firmware catalog: ${field}`);
+  if (!condition) throw new Error(`Invalid BadgeHub response: ${field}`);
+}
+
+export function validateBadgeHubVersions(value: unknown): asserts value is BadgeHubVersion[] {
+  requireField(Array.isArray(value), "versions");
+  for (const [index, version] of value.entries()) {
+    const path = `versions[${index}]`;
+    requireField(isRecord(version), path);
+    requireField(version.version === undefined || typeof version.version === "string", `${path}.version`);
+    requireField(Number.isSafeInteger(version.latestRevision) && Number(version.latestRevision) >= 0, `${path}.latestRevision`);
+    requireField(
+      typeof version.latestPublishDate === "string" && !Number.isNaN(Date.parse(version.latestPublishDate)),
+      `${path}.latestPublishDate`,
+    );
   }
 }
 
-/** Validate untrusted catalog JSON before any metadata is used for flashing. */
-export function validateFirmwareCatalog(value: unknown): asserts value is FirmwareCatalog {
-  requireField(isRecord(value), "catalog");
-  requireField(value.schemaVersion === 1, "schemaVersion");
-  requireField(isRecord(value.devices), "devices");
+export function validateBadgeHubProject(value: unknown): asserts value is BadgeHubProject {
+  requireField(isRecord(value), "project");
+  requireField(isRecord(value.version), "project.version");
+  requireField(Number.isSafeInteger(value.version.revision) && Number(value.version.revision) >= 0, "project.version.revision");
+  requireField(Array.isArray(value.version.files), "project.version.files");
+  requireField(
+    typeof value.version.published_at === "string" && !Number.isNaN(Date.parse(value.version.published_at)),
+    "project.version.published_at",
+  );
 
-  for (const [deviceKey, deviceValue] of Object.entries(value.devices)) {
-    requireField(isRecord(deviceValue), `devices.${deviceKey}`);
-    requireField(Array.isArray(deviceValue.releases), `devices.${deviceKey}.releases`);
-
-    for (const [releaseIndex, releaseValue] of deviceValue.releases.entries()) {
-      const releasePath = `devices.${deviceKey}.releases[${releaseIndex}]`;
-      requireField(isRecord(releaseValue), releasePath);
-      requireField(typeof releaseValue.version === "string" && releaseValue.version.length > 0, `${releasePath}.version`);
-      requireField(typeof releaseValue.name === "string", `${releasePath}.name`);
-      requireField(typeof releaseValue.prerelease === "boolean", `${releasePath}.prerelease`);
-      requireField(Array.isArray(releaseValue.artifacts), `${releasePath}.artifacts`);
-
-      for (const [artifactIndex, artifactValue] of releaseValue.artifacts.entries()) {
-        const artifactPath = `${releasePath}.artifacts[${artifactIndex}].artifact`;
-        requireField(isRecord(artifactValue), artifactPath);
-        requireField(typeof artifactValue.filename === "string" && artifactValue.filename.length > 0, `${artifactPath}.filename`);
-        requireField(typeof artifactValue.url === "string" && artifactValue.url.length > 0, `${artifactPath}.url`);
-        requireField(typeof artifactValue.sha256 === "string" && /^[a-f\d]{64}$/i.test(artifactValue.sha256), `${artifactPath}.sha256`);
-        requireField(
-          typeof artifactValue.size === "number" && Number.isSafeInteger(artifactValue.size) && artifactValue.size >= 0,
-          `${artifactPath}.size`,
-        );
-        requireField(artifactValue.hardware === undefined || typeof artifactValue.hardware === "string", `${artifactPath}.hardware`);
-        requireField(
-          artifactValue.offset === undefined ||
-            (typeof artifactValue.offset === "number" && Number.isSafeInteger(artifactValue.offset) && artifactValue.offset >= 0),
-          `${artifactPath}.offset`,
-        );
-      }
-
-      requireField(
-        typeof releaseValue.publishedAt === "string" && !Number.isNaN(Date.parse(releaseValue.publishedAt)),
-        `${releasePath}.publishedAt`,
-      );
-    }
+  for (const [index, file] of value.version.files.entries()) {
+    const path = `project.version.files[${index}]`;
+    requireField(isRecord(file), path);
+    requireField(typeof file.full_path === "string" && file.full_path.length > 0, `${path}.full_path`);
+    requireField(typeof file.url === "string" && file.url.length > 0, `${path}.url`);
+    requireField(Number.isSafeInteger(file.size_of_content) && Number(file.size_of_content) >= 0, `${path}.size_of_content`);
+    requireField(typeof file.sha256 === "string" && /^[a-f\d]{64}$/i.test(file.sha256), `${path}.sha256`);
   }
 }
 
@@ -122,7 +104,7 @@ export async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Reject firmware whose downloaded bytes do not match catalog metadata. */
+/** Reject firmware whose downloaded bytes do not match BadgeHub metadata. */
 export async function verifyFirmware(asset: FirmwareAsset, buffer: ArrayBuffer): Promise<void> {
   if (buffer.byteLength !== asset.size) {
     throw new Error(`Firmware size mismatch: expected ${asset.size} bytes, received ${buffer.byteLength}`);
@@ -134,70 +116,69 @@ export async function verifyFirmware(asset: FirmwareAsset, buffer: ArrayBuffer):
   }
 }
 
-async function requestCatalog(forceRefresh: boolean): Promise<FirmwareCatalog> {
-  const url = forceRefresh ? `${FIRMWARE_API_URL}?t=${Date.now()}` : FIRMWARE_API_URL;
+async function requestJson(url: string, forceRefresh: boolean): Promise<unknown> {
   const response = await fetch(url, forceRefresh ? { cache: "reload" } : undefined);
-  if (!response.ok) {
-    throw new Error(`Firmware catalog request failed (HTTP ${response.status})`);
-  }
-
-  const catalog: unknown = await response.json();
-  validateFirmwareCatalog(catalog);
-  for (const device of Object.values(catalog.devices)) {
-    device.releases = sortCatalogReleases(device.releases);
-  }
-  return catalog;
+  if (!response.ok) throw new Error(`BadgeHub request failed (HTTP ${response.status})`);
+  return response.json();
 }
 
-async function fetchCatalog(forceRefresh: boolean): Promise<FirmwareCatalog> {
-  if (forceRefresh) {
-    if (!refreshPromise) {
-      refreshPromise = requestCatalog(true)
-        .then((catalog) => {
-          catalogPromise = Promise.resolve(catalog);
-          return catalog;
-        })
-        .finally(() => {
-          refreshPromise = undefined;
-        });
-    }
-    return refreshPromise;
-  }
+async function requestReleases(projectSlug: string, forceRefresh: boolean): Promise<FirmwareRelease[]> {
+  const suffix = forceRefresh ? `?t=${Date.now()}` : "";
+  const versionsValue = await requestJson(
+    `${BADGEHUB_API_URL}/projects/${encodeURIComponent(projectSlug)}/versions${suffix}`,
+    forceRefresh,
+  );
+  validateBadgeHubVersions(versionsValue);
 
-  catalogPromise ??= requestCatalog(false).catch((error) => {
-    catalogPromise = undefined;
-    throw error;
-  });
-  return catalogPromise;
+  const releases = await Promise.all(
+    versionsValue.map(async (version) => {
+      const projectValue = await requestJson(
+        `${BADGEHUB_API_URL}/projects/${encodeURIComponent(projectSlug)}/rev${version.latestRevision}${suffix}`,
+        forceRefresh,
+      );
+      validateBadgeHubProject(projectValue);
+      requireField(projectValue.version.revision === version.latestRevision, "project.version.revision mismatch");
+
+      const tag = version.version?.trim() || `rev${version.latestRevision}`;
+      return {
+        tag_name: tag,
+        name: tag,
+        prerelease: false,
+        publishedAt: version.latestPublishDate,
+        assets: projectValue.version.files.map((file) => ({
+          name: file.full_path,
+          browser_download_url: file.url,
+          size: file.size_of_content,
+          sha256: file.sha256,
+        })),
+      } satisfies FirmwareRelease;
+    }),
+  );
+
+  return sortCatalogReleases(releases);
 }
 
-/** Fetch releases for one supported device from the central firmware catalog. */
+/** Fetch all published metadata versions for one supported BadgeHub project. */
 export async function fetchReleases(deviceKey: string, forceRefresh = false): Promise<FirmwareRelease[]> {
-  const catalogKey = DEVICE_BY_KEY[deviceKey];
-  if (!catalogKey) {
-    throw new Error(`Unknown firmware device key: ${deviceKey}`);
+  const projectSlug = PROJECT_BY_KEY[deviceKey];
+  if (!projectSlug) throw new Error(`Unknown firmware device key: ${deviceKey}`);
+
+  if (forceRefresh) {
+    return requestReleases(projectSlug, true).then((releases) => {
+      releasePromises.set(deviceKey, Promise.resolve(releases));
+      return releases;
+    });
   }
 
-  const catalog = await fetchCatalog(forceRefresh);
-  const device = catalog.devices[catalogKey];
-  if (!device) {
-    throw new Error(`Firmware catalog has no device: ${catalogKey}`);
+  let releases = releasePromises.get(deviceKey);
+  if (!releases) {
+    releases = requestReleases(projectSlug, false).catch((error) => {
+      releasePromises.delete(deviceKey);
+      throw error;
+    });
+    releasePromises.set(deviceKey, releases);
   }
-
-  return device.releases.map((release) => ({
-    tag_name: release.version,
-    name: release.name || release.version,
-    prerelease: release.prerelease,
-    publishedAt: release.publishedAt,
-    assets: release.artifacts.map((artifact) => ({
-      name: artifact.filename,
-      browser_download_url: artifact.url,
-      size: artifact.size,
-      sha256: artifact.sha256,
-      hardware: artifact.hardware,
-      offset: artifact.offset,
-    })),
-  }));
+  return releases;
 }
 
 async function readResponse(response: Response, expectedSize: number, onProgress?: (progress: number) => void): Promise<ArrayBuffer> {

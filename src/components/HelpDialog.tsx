@@ -7,7 +7,7 @@ import { useTranslation } from "../context/LanguageContext";
  * Small round "?" button that opens a dialog with flashing instructions.
  * Place next to a flash button; pass the instructions as children.
  */
-export function HelpButton({ title, children }: { title: string; children: React.ReactNode }) {
+export function HelpButton({ title, label, children }: { title: string; label?: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
 
@@ -19,7 +19,7 @@ export function HelpButton({ title, children }: { title: string; children: React
         onClick={() => setOpen(true)}
         className="focus-visible:ring-fri3d-purple-light shrink-0 text-sm font-bold underline underline-offset-4 hover:no-underline focus-visible:ring-3 focus-visible:outline-none"
       >
-        {t("common.help")}
+        {label ?? t("common.help")}
       </button>
       <Dialog open={open} onClose={() => setOpen(false)}>
         <DialogBackdrop className="fixed inset-0 bg-black/40 backdrop-blur-xs" />

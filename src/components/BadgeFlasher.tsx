@@ -15,16 +15,11 @@ const BADGE_GENERATIONS = ["2026", "2024"];
 
 type FirmwareSource = "release" | "local";
 
-interface BadgeOption {
-  badge: string;
-  asset: FirmwareAsset;
-}
-
 interface FlashableRelease {
   tag: string;
   name: string;
   prerelease: boolean;
-  badges: BadgeOption[];
+  asset: FirmwareAsset;
 }
 
 const selectClassName = clsx(
@@ -59,19 +54,18 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
       setError(false);
       const data = await fetchReleases("badge", forceRefresh);
       const flashable = data
-        .map((release) => ({
-          tag: release.tag_name,
-          name: release.name || release.tag_name,
-          prerelease: release.prerelease,
-          badges: release.assets
-            .map((asset) => {
-              const badge = asset.hardware ?? asset.name.match(ASSET_REGEX)?.[1];
-              return badge ? ({ badge, asset } satisfies BadgeOption) : null;
-            })
-            .filter((badge): badge is BadgeOption => badge !== null)
-            .sort((left, right) => right.badge.localeCompare(left.badge)),
-        }))
-        .filter((release) => release.badges.length > 0);
+        .map((release) => {
+          const asset = release.assets.find((candidate) => candidate.name === "firmware.bin");
+          return asset
+            ? ({
+                tag: release.tag_name,
+                name: release.name || release.tag_name,
+                prerelease: release.prerelease,
+                asset,
+              } satisfies FlashableRelease)
+            : null;
+        })
+        .filter((release): release is FlashableRelease => release !== null);
 
       setReleases(flashable);
       if (flashable.length > 0) setSelectedTag(flashable[0].tag);
@@ -91,36 +85,8 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
     if (!advanced) setSource("release");
   }, [advanced]);
 
-  const availableBadges = useMemo(
-    () =>
-      [...new Set(releases.flatMap((release) => release.badges.map((badge) => badge.badge)))].sort((left, right) =>
-        right.localeCompare(left),
-      ),
-    [releases],
-  );
-  const releasesForBadge = useMemo(
-    () => releases.filter((release) => release.badges.some((badge) => badge.badge === selectedBadge)),
-    [releases, selectedBadge],
-  );
-  const selectedRelease = useMemo(
-    () => releasesForBadge.find((release) => release.tag === selectedTag) ?? releasesForBadge[0],
-    [releasesForBadge, selectedTag],
-  );
-
-  useEffect(() => {
-    if (availableBadges.length > 0 && !availableBadges.includes(selectedBadge)) {
-      setSelectedBadge(availableBadges.includes(DEFAULT_BADGE) ? DEFAULT_BADGE : availableBadges[0]);
-      return;
-    }
-    if (releasesForBadge.length > 0 && !releasesForBadge.some((release) => release.tag === selectedTag)) {
-      setSelectedTag(releasesForBadge[0].tag);
-    }
-  }, [availableBadges, releasesForBadge, selectedBadge, selectedTag]);
-
-  const selectedAsset = useMemo(
-    () => selectedRelease?.badges.find((badge) => badge.badge === selectedBadge)?.asset,
-    [selectedRelease, selectedBadge],
-  );
+  const selectedRelease = useMemo(() => releases.find((release) => release.tag === selectedTag) ?? releases[0], [releases, selectedTag]);
+  const selectedAsset = selectedRelease?.asset;
 
   const busy = downloading || isFlashing;
   const canFlash = supported && !busy && (source === "local" ? Boolean(localFirmware) : Boolean(selectedAsset));
@@ -238,6 +204,8 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
             )}
           </div>
 
+          {source === "release" && <p className="mb-4 text-sm font-semibold text-gray-600">{t("badge.compatibility")}</p>}
+
           {source === "release" ? (
             <div>
               {loading && <p className="text-gray-500">{t("common.loadingReleases")}</p>}
@@ -253,31 +221,16 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
                 !error &&
                 selectedRelease &&
                 (advanced ? (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
-                    <label className="grid gap-1">
-                      <span className="text-xs font-bold uppercase">{t("badge.badge")}</span>
-                      <select
-                        className={selectClassName}
-                        value={selectedBadge}
-                        disabled={busy || !supported}
-                        onChange={(event) => setSelectedBadge(event.target.value)}
-                      >
-                        {availableBadges.map((badge) => (
-                          <option key={badge} value={badge}>
-                            {t("badge.badgeGeneration", { badge })}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                     <label className="grid gap-1">
                       <span className="text-xs font-bold uppercase">{t("common.version")}</span>
                       <select
                         className={selectClassName}
                         value={selectedRelease?.tag ?? ""}
-                        disabled={busy || !supported || releasesForBadge.length === 0}
+                        disabled={busy || !supported || releases.length === 0}
                         onChange={(event) => setSelectedTag(event.target.value)}
                       >
-                        {releasesForBadge.map((release) => (
+                        {releases.map((release) => (
                           <option key={release.tag} value={release.tag}>
                             {release.name}
                             {release.prerelease ? ` · ${t("common.prerelease")}` : ""}
@@ -296,7 +249,7 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
                   </div>
                 ) : (
                   <p>
-                    <strong>{selectedRelease.name}</strong> · {t("badge.badgeGeneration", { badge: selectedBadge })} ·{" "}
+                    <strong>{selectedRelease.name}</strong> · {t("badge.compatibilityShort")} ·{" "}
                     {selectedAsset ? formatBytes(selectedAsset.size) : ""}
                   </p>
                 ))}
@@ -340,15 +293,16 @@ export function BadgeFlasher({ advanced = false, supported = true }: { advanced?
           {advanced && (
             <p className="min-w-0 truncate text-sm text-gray-600">
               {source === "local"
-                ? localFirmware?.name || t("common.noFileSelected")
-                : selectedRelease?.name || t("common.noReleaseSelected")}{" "}
-              · {t("badge.badgeGeneration", { badge: selectedBadge })}
+                ? `${localFirmware?.name || t("common.noFileSelected")} · ${t("badge.badgeGeneration", { badge: selectedBadge })}`
+                : `${selectedRelease?.name || t("common.noReleaseSelected")} · ${t("badge.compatibilityShort")}`}
             </p>
           )}
           <div className="flex shrink-0 items-center gap-3">
-            <HelpButton title={t("badge.helpTitle", { badge: selectedBadge })}>
-              <BadgeInstructions badge={selectedBadge} />
-            </HelpButton>
+            {BADGE_GENERATIONS.map((badge) => (
+              <HelpButton key={badge} title={t("badge.helpTitle", { badge })} label={t("badge.helpButton", { badge })}>
+                <BadgeInstructions badge={badge} />
+              </HelpButton>
+            ))}
             <Button type={ButtonType.Primary} onClick={handleFlash} disabled={!canFlash}>
               {isFlashing
                 ? t("common.flashing")
