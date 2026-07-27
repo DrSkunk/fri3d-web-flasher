@@ -7,6 +7,7 @@ import { downloadAsset, fetchReleases, type FirmwareAsset } from "../lib/firmwar
 import { selectPeripheralAsset, type PeripheralKey } from "../lib/firmwareSelection";
 import { HelpButton, PeripheralInstructions } from "./HelpDialog";
 import { useTranslation } from "../context/LanguageContext";
+import { isWindowsPlatform } from "../lib/browserCapabilities";
 
 type FirmwareSource = "release" | "local";
 type Peripheral = { key: PeripheralKey; label: string };
@@ -43,6 +44,7 @@ function normalizeError(error: unknown, fallback: string): string {
 
 export function PeripheralFlasher({ advanced = false, supported = true }: { advanced?: boolean; supported?: boolean }) {
   const { t } = useTranslation();
+  const showWindowsDriver = isWindowsPlatform();
   const peripherals = useMemo(() => (advanced ? [...MAIN_PERIPHERALS, ...ADVANCED_EXTRA_PERIPHERALS] : MAIN_PERIPHERALS), [advanced]);
   const [source, setSource] = useState<FirmwareSource>("release");
   const [localFirmware, setLocalFirmware] = useState<File | null>(null);
@@ -165,9 +167,21 @@ export function PeripheralFlasher({ advanced = false, supported = true }: { adva
 
   return (
     <section className="shadow-hard mb-6 w-full rounded-lg border-4 border-black bg-white">
-      <header className="border-b-3 border-black px-5 py-4">
-        <h2 className="font-display text-xl font-bold uppercase">{t("peripheral.titleShort")}</h2>
-        <p className="text-sm text-gray-500">WCH · WebUSB</p>
+      <header className="flex items-center justify-between gap-4 border-b-3 border-black px-5 py-4">
+        <div>
+          <h2 className="font-display text-xl font-bold uppercase">{t("peripheral.titleShort")}</h2>
+          <p className="text-sm text-gray-500">WCH · WebUSB</p>
+        </div>
+        {showWindowsDriver && (
+          <a
+            href="https://github.com/Fri3dCamp/blaster_2024#step-5a-install-zadig-windows-only"
+            target="_blank"
+            rel="noreferrer"
+            className="font-display rounded-md border-2 border-black px-3 py-2 text-center text-sm font-bold uppercase hover:bg-gray-100"
+          >
+            {t("peripheral.windowsDriverButton")}
+          </a>
+        )}
       </header>
 
       <div className="p-5">

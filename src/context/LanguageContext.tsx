@@ -122,6 +122,7 @@ const nl = {
   "peripheral.success": "{label} succesvol geflashed ({tag})",
   "peripheral.helpTitle": "{label} flashen",
   "peripheral.helpTitleAdvanced": "Peripheral flashen (Lana bordje)",
+  "peripheral.windowsDriverButton": "Windows USB-driver instellen",
 
   // Operation phases and diagnostics
   "phase.idle": "Klaar",
@@ -261,6 +262,7 @@ const en: Dict = {
   "peripheral.success": "{label} flashed successfully ({tag})",
   "peripheral.helpTitle": "Flashing {label}",
   "peripheral.helpTitleAdvanced": "Flashing a peripheral (Lana board)",
+  "peripheral.windowsDriverButton": "Set up Windows USB driver",
 
   "phase.idle": "Ready",
   "phase.loading-releases": "Loading releases...",
