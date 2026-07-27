@@ -12,6 +12,11 @@ export function detectTransportSupport(): TransportSupport {
   };
 }
 
+export function isWindowsPlatform(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Windows|Win32|Win64|WOW64/i.test(`${navigator.userAgent} ${navigator.platform}`);
+}
+
 export function useTransportSupport(): TransportSupport {
   const [support, setSupport] = useState(detectTransportSupport);
   useEffect(() => setSupport(detectTransportSupport()), []);
