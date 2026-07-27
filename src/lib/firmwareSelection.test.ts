@@ -26,6 +26,11 @@ describe("peripheral artifact selection", () => {
     expect(selected?.name).toBe("firmware.bin");
   });
 
+  it("selects Flamingo firmware for Blaster 2024", () => {
+    const selected = selectPeripheralAsset("blaster2024", [asset("metadata.json"), asset("flamingo.hex")]);
+    expect(selected?.name).toBe("flamingo.hex");
+  });
+
   it("does not choose vague bin/hex/elf matches", () => {
     expect(selectPeripheralAsset("communicator2026", [asset("bootloader.bin"), asset("firmware.hex")])).toBeUndefined();
   });

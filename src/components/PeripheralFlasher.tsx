@@ -16,7 +16,10 @@ const MAIN_PERIPHERALS: Peripheral[] = [
   { key: "communicator2026", label: "Communicator 2026" },
   { key: "dj2026", label: "DJ Addon 2026" },
 ];
-const ADVANCED_EXTRA_PERIPHERALS: Peripheral[] = [{ key: "communicator2024", label: "Communicator 2024" }];
+const ADVANCED_EXTRA_PERIPHERALS: Peripheral[] = [
+  { key: "communicator2024", label: "Communicator 2024" },
+  { key: "blaster2024", label: "Blaster 2024 (Flamingo)" },
+];
 
 interface FlashableRelease {
   tag: string;
