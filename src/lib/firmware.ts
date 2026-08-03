@@ -45,6 +45,7 @@ interface BadgeHubProject {
 
 const PROJECT_BY_KEY: Record<string, string> = {
   badge: "be.fri3d.badge_firmware_micropythonos",
+  companionEraser2026: "badge_2026_expander_eraser",
   communicator2026: "communicator_2026",
   communicator2024: "communicator_2024",
   blaster2024: "blaster_2024",

@@ -84,6 +84,35 @@ describe("BadgeHub metadata", () => {
     ).toThrow("sha256");
   });
 
+  it("uses the companion MCU eraser BadgeHub project", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/versions")) {
+        return Response.json([{ latestRevision: 1, latestPublishDate: "2026-08-03T08:30:01.525Z" }]);
+      }
+      return Response.json({
+        version: {
+          revision: 1,
+          published_at: "2026-08-03T08:30:01.525Z",
+          files: [
+            {
+              full_path: "fri3d_badge_2026_fw_erase_tool.bin",
+              url: `${url}/files/fri3d_badge_2026_fw_erase_tool.bin`,
+              size_of_content: 309808,
+              sha256: "d8b4658c94919b933d75bcc5771f2baf9c3749be3375b3ef5451fd8f5ecd3415",
+            },
+          ],
+        },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const releases = await fetchReleases("companionEraser2026");
+
+    expect(releases[0].assets[0].name).toBe("fri3d_badge_2026_fw_erase_tool.bin");
+    expect(fetchMock).toHaveBeenCalledWith("https://badgehub.eu/api/v3/projects/badge_2026_expander_eraser/versions", undefined);
+  });
+
   it("loads every version and maps its revision files", async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);

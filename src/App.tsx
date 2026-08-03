@@ -4,6 +4,7 @@ import { ToastContainer } from "./components/ToastContainer";
 import { NoSerialOverlay } from "./components/NoSerialOverlay";
 import { BadgeFlasher } from "./components/BadgeFlasher";
 import { PeripheralFlasher } from "./components/PeripheralFlasher";
+import { CompanionEraser } from "./components/CompanionEraser";
 import { useTranslation } from "./context/LanguageContext";
 import { useTransportSupport } from "./lib/browserCapabilities";
 
@@ -63,6 +64,7 @@ export function App() {
             </div>
             <BadgeFlasher advanced={advancedMode} supported={transportSupport.serial} />
             <PeripheralFlasher advanced={advancedMode} supported={transportSupport.usb} />
+            {advancedMode && <CompanionEraser supported={transportSupport.serial} />}
           </div>
         </main>
       </div>
